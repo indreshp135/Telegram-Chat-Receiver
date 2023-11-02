@@ -53,3 +53,69 @@ for repo_url in repos:
 ```
 ---
     
+> **Indresh** - _(02/11/2023 05:59:08)_
+```
+const nodegit = require('nodegit');
+const fs = require('fs').promises;
+
+// List of repository URLs
+const repos = ["https://your_pat@github.com/repo1.git", "https://your_pat@github.com/repo2.git"];
+
+// New branch name
+const newBranchName = "update_vs_version";
+
+async function cloneAndUpdateRepos() {
+  for (const repoUrl of repos) {
+    // Clone the repository
+    const repoName = repoUrl.split('/').pop().replace('.git', '');
+    const repoPath = ./${repoName};
+    const repo = await nodegit.Clone(repoUrl, repoPath, {
+      fetchOpts: {
+        callbacks: {
+          credentials: (_url, username) => nodegit.Cred.userpassPlaintextNew(username, 'x-oauth-basic'),
+        },
+      },
+    });
+
+    // Create a new branch
+    const branch = await repo.createBranch(newBranchName);
+    await repo.checkoutBranch(branch);
+
+    // Find .sln file and update VisualStudioVersion
+    const slnFile = await findSlnFile(repoPath);
+    if (slnFile) {
+      const slnContent = await fs.readFile(slnFile, 'utf8');
+      const updatedContent = slnContent.replace(/VisualStudioVersion = \d+/, 'VisualStudioVersion = 17');
+      await fs.writeFile(slnFile, updatedContent);
+
+      // Commit the changes
+      const index = await repo.refreshIndex();
+      await index.addByPath(slnFile);
+      await index.write();
+      const oid = await index.writeTree();
+      const head = await nodegit.Reference.nameToId(repo, 'HEAD');
+      const parent = await repo.getCommit(head);
+      const signature = nodegit.Signature.now('Your Name', 'your.email@example.com');
+      await repo.createCommit('HEAD', signature, signature, 'Update VisualStudioVersion', oid, [parent]);
+
+      // Push the changes
+      const remote = await repo.getRemote('origin');
+      await remote.push([refs/heads/${newBranchName}:refs/heads/${newBranchName}]);
+    }
+  }
+}
+
+async function findSlnFile(directory) {
+  const files = await fs.readdir(directory);
+  for (const file of files) {
+    if (file.endsWith('.sln')) {
+      return ${directory}/${file};
+    }
+  }
+  return null;
+}
+
+cloneAndUpdateRepos().catch(err => console.error(err));
+```
+---
+    
