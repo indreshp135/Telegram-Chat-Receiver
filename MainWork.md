@@ -119,3 +119,33 @@ cloneAndUpdateRepos().catch(err => console.error(err));
 ```
 ---
     
+> **Indresh** - _(03/11/2023 07:18:35)_
+```
+import git
+
+# Replace 'repo_path' with the path to your Git repository
+repo_path = '/path/to/your/repo'
+
+# Create a Git repository object
+repo = git.Repo(repo_path)
+
+# Name of the branch you want to create
+new_branch_name = 'develop'
+
+# Check if 'develop' branch exists
+if new_branch_name not in [branch.name for branch in repo.branches]:
+    # Get the 'master' branch
+    master_branch = repo.branches['master']
+
+    # Create a new branch from 'master'
+    new_branch = master_branch.checkout(b=new_branch_name)
+
+    # Push the new branch to the remote repository
+    new_branch.remote().push(new_branch.name)
+
+    print(f"Created and pushed '{new_branch_name}' branch from 'master'.")
+else:
+    print(f"'{new_branch_name}' branch already exists.")
+```
+---
+    
