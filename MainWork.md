@@ -281,3 +281,96 @@ else:
 ```
 ---
     
+> **Indresh** - _(07/11/2023 09:17:16)_
+```
+import requests
+
+def create_branch_and_commit(repo_owner, repo_name, base_branch, new_branch, access_token, file_path, new_content, commit_message):
+    # Step 1: Create a new branch
+    headers = {
+        "Authorization": f"token {access_token}"
+    }
+    branch_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/git/refs/heads/{base_branch}"
+    response = requests.get(branch_url, headers=headers)
+    
+    if response.status_code == 200:
+        data = response.json()
+        base_sha = data["object"]["sha"]
+        new_branch_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/git/refs"
+        new_branch_data = {
+            "ref": f"refs/heads/{new_branch}",
+            "sha": base_sha
+        }
+        response = requests.post(new_branch_url, json=new_branch_data, headers=headers)
+        
+        if response.status_code != 201:
+            return "Error creating a new branch"
+    else:
+        return "Error fetching base branch details"
+
+    # Step 2: Get the current file content
+    file_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{file_path}"
+    response = requests.get(file_url, headers=headers)
+
+    if response.status_code == 200:
+        data = response.json()
+        existing_content = data["content"]
+    else:
+        return "Error fetching file content"
+
+    # Step 3: Update the file content
+    new_content = new_content.encode("utf-8").decode("base64")
+    new_content = existing_content + new_content
+    new_content = new_content.encode("utf-8").decode("base64")
+
+    # Step 4: Create a new commit
+    commit_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/git/commits"
+    commit_data = {
+        "message": commit_message,
+        "tree": base_sha,
+        "parents": [base_sha],
+        "author": {
+            "name": "Your Name",
+            "email": "your@email.com"
+        },
+        "committer": {
+            "name": "Your Name",
+            "email": "your@email.com"
+        },
+        "signature": "-----",
+        "content": new_content
+    }
+    response = requests.post(commit_url, json=commit_data, headers=headers)
+
+    if response.status_code == 201:
+        commit_sha = response.json()["sha"]
+    else:
+        return "Error creating a new commit"
+
+    # Step 5: Update the branch reference
+    branch_update_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/git/refs/heads/{new_branch}"
+    branch_update_data = {
+        "sha": commit_sha
+    }
+    response = requests.patch(branch_update_url, json=branch_update_data, headers=headers)
+
+    if response.status_code == 200:
+        return "New branch and commit created successfully"
+    else:
+        return "Error updating the branch reference"
+
+# Example usage:
+repo_owner = "your_username"
+repo_name = "your_repository"
+base_branch = "main"
+new_branch = "new-branch"
+access_token = "your_access_token"
+file_path = "path/to/your/file.txt"
+new_content = "New content for the file"
+commit_message = "Update file.txt in the new branch"
+
+result = create_branch_and_commit(repo_owner, repo_name, base_branch, new_branch, access_token, file_path, new_content, commit_message)
+print(result)
+```
+---
+    
