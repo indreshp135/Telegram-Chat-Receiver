@@ -236,3 +236,48 @@ else:
 ```
 ---
     
+> **Indresh** - _(07/11/2023 05:07:13)_
+```
+import requests
+import base64
+
+def get_file_contents(repo_owner, repo_name, file_path, access_token):
+    # Construct the URL to fetch the file
+    url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{file_path}"
+
+    # Set the request headers with the access token
+    headers = {
+        "Authorization": f"token {access_token}"
+    }
+
+    # Send a GET request to fetch the file content
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        data = response.json()
+
+        if "content" in data:
+            # Decode the base64 content
+            file_content = base64.b64decode(data["content"]).decode("utf-8")
+            return file_content
+        else:
+            return None  # File content not found
+    else:
+        return None  # Error occurred while fetching the file
+
+# Example usage:
+repo_owner = "your_username"
+repo_name = "your_repository"
+file_path = "README.md"
+access_token = "your_access_token"
+
+file_contents = get_file_contents(repo_owner, repo_name, file_path, access_token)
+
+if file_contents is not None:
+    print("File contents:")
+    print(file_contents)
+else:
+    print("Error fetching file contents.")
+```
+---
+    
