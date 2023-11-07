@@ -374,3 +374,48 @@ print(result)
 ```
 ---
     
+> **Indresh** - _(07/11/2023 09:44:20)_
+```
+import requests
+import base64
+
+# Your GitHub personal access token
+access_token = 'YOUR_ACCESS_TOKEN'
+
+# Repository information
+owner = 'repo_owner'
+repo = 'repo_name'
+file_path = 'path/to/your/file'
+branch_name = 'branch_name'
+
+# Encode the new content to base64
+new_content = base64.b64encode(b'Your new file content').decode('utf-8')
+
+# Step 1: Get the current file content
+url = f'https://api.github.com/repos/{owner}/{repo}/contents/{file_path}?ref={branch_name}'
+headers = {
+    'Authorization': f'token {access_token}'
+}
+
+response = requests.get(url, headers=headers)
+response_json = response.json()
+current_content = response_json['content']
+current_sha = response_json['sha']
+
+# Step 4: Make a PUT request to update the file
+update_url = f'https://api.github.com/repos/{owner}/{repo}/contents/{file_path}'
+update_data = {
+    'message': 'Update file content',
+    'content': new_content,
+    'branch': branch_name,
+    'sha': current_sha
+}
+update_response = requests.put(update_url, json=update_data, headers=headers)
+
+if update_response.status_code == 200:
+    print('File content updated successfully.')
+else:
+    print(f'Error updating file: {update_response.status_code} - {update_response.text}')
+```
+---
+    
