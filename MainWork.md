@@ -419,3 +419,25 @@ else:
 ```
 ---
     
+> **Indresh** - _(07/11/2023 10:20:27)_
+```
+base_branch = 'main'
+new_branch = 'new-branch'
+
+pr_data = {
+    'title': 'My Pull Request',
+    'head': f':owner:{new_branch}',
+    'base': base_branch
+}
+
+url = f'https://api.github.com/repos/:owner/:repo/pulls'
+response = requests.post(url, json=pr_data, headers=headers)
+
+if response.status_code == 201:
+    pr_url = response.json()['html_url']
+    print(f'Pull Request created: {pr_url}')
+else:
+    print(f'Error creating Pull Request: {response.status_code} - {response.text}')
+```
+---
+    
