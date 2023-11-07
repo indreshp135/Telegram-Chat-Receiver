@@ -149,3 +149,90 @@ else:
 ```
 ---
     
+> **Indresh** - _(07/11/2023 04:59:27)_
+```
+import requests
+import base64
+
+# Set your GitHub repository and token details
+repo_owner = "your_username"
+repo_name = "your_repository"
+branch_name = "main"
+readme_file_path = "README.md"
+access_token = "your_access_token"
+
+# Fetch the contents of the README file
+url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{readme_file_path}"
+headers = {
+    "Authorization": f"token {access_token}"
+}
+response = requests.get(url, headers=headers)
+data = response.json()
+
+if "content" in data:
+    # Decode the base64 content
+    readme_content = base64.b64decode(data["content"]).decode("utf-8")
+
+    # Make changes to the README file content
+    new_readme_content = readme_content + "\n\nUpdated content"
+
+    # Create a new branch
+    new_branch_name = "new-branch"
+    branch_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/git/refs/heads/{branch_name}"
+    branch_data = {
+        "ref": f"refs/heads/{new_branch_name}",
+        "sha": data["sha"]
+    }
+    response = requests.post(branch_url, json=branch_data, headers=headers)
+
+    if response.status_code == 201:
+        # Commit the changes to the new branch
+        commit_message = "Updated README.md"
+        commit_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/git/commits"
+        commit_data = {
+            "message": commit_message,
+            "tree": data["sha"],
+            "parents": [data["sha"]],
+            "committer": {
+                "name": "Your Name",
+                "email": "youremail@example.com"
+            },
+            "author": {
+                "name": "Your Name",
+                "email": "youremail@example.com"
+            },
+            "signature": "-----"
+        }
+        response = requests.post(commit_url, json=commit_data, headers=headers)
+        commit = response.json()
+
+        # Update the branch reference to the new commit
+        branch_ref_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/git/refs/heads/{new_branch_name}"
+        branch_ref_data = {
+            "sha": commit["sha"]
+        }
+        response = requests.patch(branch_ref_url, json=branch_ref_data, headers=headers)
+
+        if response.status_code == 200:
+            # Create a pull request
+            pr_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/pulls"
+            pr_data = {
+                "title": "Update README.md",
+                "head": new_branch_name,
+                "base": branch_name
+            }
+            response = requests.post(pr_url, json=pr_data, headers=headers)
+
+            if response.status_code == 201:
+                print("Pull request created successfully.")
+            else:
+                print("Error creating pull request.")
+        else:
+            print("Error updating branch reference.")
+    else:
+        print("Error creating new branch.")
+else:
+    print("Error fetching README file content.")
+```
+---
+    
