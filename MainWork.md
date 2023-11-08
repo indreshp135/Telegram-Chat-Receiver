@@ -956,3 +956,96 @@ public class ObservationCounter
 ```
 ---
     
+> **Indresh** - _(08/11/2023 07:14:53)_
+```
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
+using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.LinearAlgebra.Double;
+
+public static class RandomWalkUtility
+{
+    private const double EPS = 1e-8; // tolerance below which to consider a value as zero
+
+    public static DenseVector RandomWalk(
+        SparseMatrix transitionMatrix,
+        double alpha,
+        double errTol,
+        int maxIter)
+    {
+        int n = transitionMatrix.RowCount;
+        DenseVector dampingVec = (1.0 - alpha) / n * DenseVector.Create(n, _ => 1.0);
+        DenseVector pi = 1.0 / n * DenseVector.Create(n, _ => 1.0);
+
+        for (int iter = 0; iter < maxIter; iter++)
+        {
+            DenseVector piNext = dampingVec + alpha * transitionMatrix.TransposeThisAndMultiply(pi);
+            double error = pi.Subtract(piNext).LInfinityNorm();
+            pi = piNext;
+            if (error <= errTol)
+            {
+                break;
+            }
+        }
+
+        double piSum = pi.Sum();
+        if (piSum < EPS)
+        {
+            throw new ArgumentException("Stationary probabilities sum approximately zero");
+        }
+
+        return pi.Divide(piSum);
+    }
+
+    public static SparseMatrix<double> DictToCsrMatrix(
+        Dictionary<Tuple<int, int>, double> dataDict,
+        Tuple<int, int> shape)
+    {
+        if (dataDict.Count == 0)
+        {
+            throw new ArgumentException("Dictionary must not be empty");
+        }
+
+        int numRows = shape.Item1;
+        int numCols = shape.Item2;
+        if (numRows <= 0 || numCols <= 0)
+        {
+            throw new ArgumentException("Shape dimensions must be positive integers");
+        }
+
+        var values = dataDict.Values.ToList();
+        var rowIndices = dataDict.Keys.Select(k => k.Item1).ToArray();
+        var colIndices = dataDict.Keys.Select(k => k.Item2).ToArray();
+
+        return SparseMatrix.OfIndexed(numRows, numCols, rowIndices, colIndices, values);
+    }
+
+    public static SparseMatrix<double> RowNormalizeCsrMatrix(SparseMatrix<double> matrix)
+    {
+        if (matrix == null)
+        {
+            throw new ArgumentNullException("Input matrix is null");
+        }
+
+        if (matrix.RowCount <= 0 || matrix.ColumnCount <= 0)
+        {
+            throw new ArgumentException("Input matrix dimensions must be positive");
+        }
+
+        if (matrix.NonZerosCount == 0)
+        {
+            throw new ArgumentException("Input matrix must not store zeros");
+        }
+
+        var rowSums = matrix.RowSums().ToColumnMatrix();
+        var normalizedData = matrix.EnumerateIndexed(Zeros.AllowSkip, DenseMatrixColumnMajor.StorageFormat)
+            .Select(entry => entry.Value / rowSums[entry.RowIndex, 0]);
+
+        return SparseMatrix.OfIndexed(matrix.RowCount, matrix.ColumnCount, matrix.EnumerateIndexed(Zeros.AllowSkip), normalizedData);
+    }
+}
+```
+---
+    
