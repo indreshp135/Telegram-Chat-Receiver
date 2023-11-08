@@ -817,3 +817,142 @@ public class ObservationCounter
 ```
 ---
     
+> **Indresh** - _(08/11/2023 06:45:04)_
+```
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Collections;
+using System.Tuple;
+
+public class IncrementingDict : IDictionary
+{
+    private Dictionary<object, int> _d = new Dictionary<object, int>();
+    private int _nextVal = 0;
+
+    public void Add(object key, object value)
+    {
+        if (_d.ContainsKey(key))
+        {
+            return;
+        }
+        _d[key] = _nextVal;
+        _nextVal++;
+    }
+
+    // Implement other IDictionary methods as needed
+
+    public int Count
+    {
+        get { return _d.Count; }
+    }
+
+    // Implement other IDictionary properties as needed
+}
+
+public class ObservationCounter
+{
+    private Dictionary<string, int> _nObs = new Dictionary<string, int>();
+    private Dictionary<string, Dictionary<Tuple<string, string>, int>> _counts = new Dictionary<string, Dictionary<Tuple<string, string>, int>>();
+    private Dictionary<Tuple<string, string>, int> _jointCounts = new Dictionary<Tuple<string, string>, int>();
+    private IncrementingDict _index = new IncrementingDict();
+
+    public Dictionary<string, Dictionary<Tuple<string, string>, int>> Counts
+    {
+        get { return _counts.ToDictionary(entry => entry.Key, entry => entry.Value.ToDictionary(x => Tuple.Create(x.Key, x.Value), x => x.Value)); }
+    }
+
+    public Dictionary<Tuple<string, string>, int> JointCounts
+    {
+        get { return _jointCounts.ToDictionary(entry => Tuple.Create(entry.Key.Item1, entry.Key.Item2), entry => entry.Value); }
+    }
+
+    public IncrementingDict Index
+    {
+        get { return _index; }
+    }
+
+    public void Update(IEnumerable<Dictionary<string, string>> observationEnumerable)
+    {
+        foreach (var observation in observationEnumerable)
+        {
+            var obs = observation.Where(x => !IsNaN(x.Value)).ToDictionary(entry => entry.Key, entry => entry.Value);
+            UpdateCounts(obs);
+            UpdateJointCounts(obs);
+        }
+    }
+
+    public int GetCount(Tuple<string, string> item)
+    {
+        string featureName = item.Item1;
+        if (_counts.ContainsKey(featureName))
+        {
+            if (_counts[featureName].ContainsKey(item))
+            {
+                return _counts[featureName][item];
+            }
+        }
+        return 0;
+    }
+
+    private void UpdateCounts(Dictionary<string, string> observation)
+    {
+        foreach (var item in observation)
+        {
+            string featureName = item.Key;
+            if (!_counts.ContainsKey(featureName))
+            {
+                _counts[featureName] = new Dictionary<Tuple<string, string>>();
+            }
+            if (_counts[featureName].ContainsKey(Tuple.Create(item.Key, item.Value)))
+            {
+                _counts[featureName][Tuple.Create(item.Key, item.Value)]++;
+            }
+            else
+            {
+                _counts[featureName][Tuple.Create(item.Key, item.Value)] = 1;
+            }
+            _index.Add(Tuple.Create(item.Key, item.Value));
+            if (_nObs.ContainsKey(featureName))
+            {
+                _nObs[featureName]++;
+            }
+            else
+            {
+                _nObs[featureName] = 1;
+            }
+        }
+    }
+
+    private void UpdateJointCounts(Dictionary<string, string> observation)
+    {
+        var pairs = observation.Keys.ToList().OrderBy(x => x).ToList();
+        for (int i = 0; i < pairs.Count - 1; i++)
+        {
+            for (int j = i + 1; j < pairs.Count; j++)
+            {
+                Tuple<string, string> pair = Tuple.Create(pairs[i], pairs[j]);
+                if (_jointCounts.ContainsKey(pair))
+                {
+                    _jointCounts[pair]++;
+                }
+                else
+                {
+                    _jointCounts[pair] = 1;
+                }
+            }
+        }
+    }
+
+    private bool IsNaN(object x)
+    {
+        if (x is double)
+        {
+            return double.IsNaN((double)x);
+        }
+        return x != x;
+    }
+}
+```
+---
+    
