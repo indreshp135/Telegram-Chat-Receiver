@@ -1318,3 +1318,120 @@ private Dictionary<string, float> ValueScores(Dictionary<string, object> observa
 ```
 ---
     
+> **Indresh** - _(08/11/2023 09:57:26)_
+```
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
+
+namespace CoupledBiasedRandomWalks
+{
+    class CBRW
+    {
+        // Random walk parameters
+        private readonly Dictionary<string, float> PRESET_RW_PARAMS = new Dictionary<string, float>
+        {
+            { "alpha", 0.95f },
+            { "err_tol", 1e-3f },
+            { "max_iter", 100 }
+        };
+
+        private Dictionary<string, float> rwParams;
+        private bool ignoreUnknown;
+        private float unknownFeatureScore;
+
+        private Dictionary<string, int> counter;
+
+        private Dictionary<string, float> stationaryProb;
+        private Dictionary<string, float> featureRelevance;
+
+        public CBRW(Dictionary<string, float> rwParams = null, bool ignoreUnknown = false)
+        {
+            this.rwParams = rwParams ?? new Dictionary<string, float>(PRESET_RW_PARAMS);
+            this.ignoreUnknown = ignoreUnknown;
+            this.unknownFeatureScore = ignoreUnknown ? 0.0f : float.NaN;
+            this.counter = new Dictionary<string, int>();
+            this.stationaryProb = null;
+            this.featureRelevance = null;
+        }
+
+        public Dictionary<string, float> FeatureWeights => this.featureRelevance;
+
+        public CBRW AddObservations(List<Dictionary<string, object>> observationList)
+        {
+            foreach (var observation in observationList)
+            {
+                UpdateCounter(observation);
+            }
+            return this;
+        }
+
+        public CBRW Fit()
+        {
+            int nObserved = GetMode(this.counter.Values);
+            if (nObserved == 0)
+            {
+                throw new CBRWFitException("Must add observations before calling fit method.");
+            }
+
+            try
+            {
+                var pi = RandomWalk(ComputeBiasedTransitionMatrix(), this.rwParams);
+                this.stationaryProb = new Dictionary<string, float>();
+                var featureRelevance = new Dictionary<string, float>();
+
+                foreach (var kvp in this.counter)
+                {
+                    var feature = kvp.Key;
+                    var idx = kvp.Value;
+                    var prob = pi[idx];
+                    this.stationaryProb[feature] = prob;
+                    featureRelevance[GetFeatureName(feature)] += prob;
+                }
+
+                var featureRelSum = featureRelevance.Values.Sum();
+                if (featureRelSum < float.Epsilon)
+                {
+                    throw new CBRWFitException("Feature weights sum is approximately zero.");
+                }
+
+                featureRelevance = featureRelevance.ToDictionary(kvp => kvp.Key, kvp => kvp.Value / featureRelSum);
+
+                this.featureRelevance = featureRelevance;
+            }
+            catch (Exception err)
+            {
+                throw new CBRWFitException(err.Message);
+            }
+
+            return this;
+        }
+
+        public float[] Score(List<Dictionary<string, object>> observationList)
+        {
+            if (this.featureRelevance == null || this.stationaryProb == null)
+            {
+                throw new CBRWScoreException("Must call fit method to train on added observations before scoring.");
+            }
+
+            return observationList.Select(observation => Score(observation)).ToArray();
+        }
+
+        private float Score(Dictionary<string, object> observation)
+        {
+            return ValueScores(observation).Values.Sum();
+        }
+
+        public List<Dictionary<string, float>> ValueScores(List<Dictionary<string, object>> observationList)
+        {
+            if (this.featureRelevance == null || this.stationaryProb == null)
+            {
+                throw new CBRWScoreException("Must call fit method to train on added observations before scoring.");
+            }
+
+            return observationList.Select(observation => ValueScores(observation)).ToList();
+        }
+```
+---
+    
