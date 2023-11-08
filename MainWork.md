@@ -1049,3 +1049,83 @@ public static class RandomWalkUtility
 ```
 ---
     
+> **Indresh** - _(08/11/2023 09:26:01)_
+```
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.LinearAlgebra.Double;
+using MathNet.Numerics.LinearAlgebra.Factorization;
+using MathNet.Numerics.LinearAlgebra.Storage;
+
+public class RandomWalk
+{
+    public static Vector<double> RunRandomWalk(SparseMatrix transitionMatrix, double alpha, double errTol, int maxIter)
+    {
+        int n = transitionMatrix.RowCount;
+        Vector<double> dampingVec = (1 - alpha) / n * Vector<double>.Build.Dense(n, 1.0);
+        Vector<double> pi = 1.0 / n * Vector<double>.Build.Dense(n, 1.0);
+
+        for (int iter = 0; iter < maxIter; iter++)
+        {
+            Vector<double> piNext = dampingVec + alpha * transitionMatrix.TransposeThisAndMultiply(pi);
+            double err = pi.Subtract(piNext).LInfinityNorm();
+            pi = piNext;
+            if (err <= errTol)
+            {
+                break;
+            }
+        }
+
+        double piSum = pi.Sum();
+        if (piSum < 1e-8)
+        {
+            throw new Exception("Stationary probabilities sum approximately zero");
+        }
+
+        return pi / piSum;
+    }
+
+    public static SparseMatrix<double> DictToSparseMatrix(Dictionary<Tuple<int, int>, double> dataDict, Tuple<int, int> shape)
+    {
+        if (dataDict.Count == 0)
+        {
+            throw new Exception("Dictionary must not be empty");
+        }
+
+        double[] data = dataDict.Values.ToArray();
+        var rowIndex = dataDict.Keys.Select(key => key.Item1).ToArray();
+        var colIndex = dataDict.Keys.Select(key => key.Item2).ToArray();
+        var storage = new CompressedSparseRowMatrixStorage<double>(data, rowIndex, colIndex, shape.Item1, shape.Item2);
+        return new SparseMatrix(storage);
+    }
+
+    public static SparseMatrix<double> RowNormalizeSparseMatrix(SparseMatrix<double> matrix)
+    {
+        if (matrix.RowCount != matrix.ColumnCount)
+        {
+            throw new Exception("Input matrix must be square");
+        }
+
+        var rowSums = matrix.RowSums();
+        for (int i = 0; i < rowSums.Count; i++)
+        {
+            if (rowSums[i] == 0.0)
+            {
+                throw new Exception("Input matrix must not store zeros");
+            }
+        }
+
+        var normalizedData = matrix.EnumerateNonZero().Select((entry, index) => entry.Value / rowSums[entry.Row])
+            .ToArray();
+
+        var rowIndices = matrix.EnumerateNonZero().Select(entry => entry.Row).ToArray();
+        var colIndices = matrix.EnumerateNonZero().Select(entry => entry.Column).ToArray();
+
+        return SparseMatrix.OfIndexed(shape: matrix.RowCount, matrix.ColumnCount, rowIndices, colIndices, normalizedData);
+    }
+}
+```
+---
+    
