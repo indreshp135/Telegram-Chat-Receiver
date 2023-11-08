@@ -688,3 +688,132 @@ public class ObservationCounter
 ```
 ---
     
+> **Indresh** - _(08/11/2023 06:35:21)_
+```
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+public class IncrementingDict
+{
+    private Dictionary<string, int> dictionary = new Dictionary<string, int>();
+    private int nextValue = 0;
+
+    public void Insert(Tuple<string, string> key)
+    {
+        var keyString = $"{key.Item1}:{key.Item2}";
+        if (!dictionary.ContainsKey(keyString))
+        {
+            dictionary[keyString] = nextValue;
+            nextValue++;
+        }
+    }
+
+    public int this[Tuple<string, string> key]
+    {
+        get
+        {
+            var keyString = $"{key.Item1}:{key.Item2}";
+            return dictionary[keyString];
+        }
+    }
+
+    public int Count => dictionary.Count;
+
+    public bool ContainsKey(Tuple<string, string> key)
+    {
+        var keyString = $"{key.Item1}:{key.Item2}";
+        return dictionary.ContainsKey(keyString);
+    }
+}
+
+public class ObservationCounter
+{
+    private Dictionary<string, Dictionary<string, int>> counts = new Dictionary<string, Dictionary<string, int>();
+    private Dictionary<string, int> jointCounts = new Dictionary<string, int>();
+    private IncrementingDict index = new IncrementingDict();
+    private Dictionary<string, int> nObs = new Dictionary<string, int>();
+
+    public Dictionary<string, Dictionary<string, int>> Counts => counts.ToDictionary(entry => entry.Key, entry => new Dictionary<string, int>(entry.Value));
+    public Dictionary<string, int> JointCounts => new Dictionary<string, int>(jointCounts);
+    public IncrementingDict Index => index;
+
+    public void Update(List<Dictionary<string, string>> observationList)
+    {
+        foreach (var observation in observationList)
+        {
+            var obs = observation.Where(entry => !IsNaN(entry.Value)).ToDictionary(entry => entry.Key, entry => entry.Value);
+            UpdateCounts(obs);
+            UpdateJointCounts(obs);
+        }
+    }
+
+    public int GetCount(Tuple<string, string> item)
+    {
+        var featureName = GetFeatureName(item);
+        if (counts.ContainsKey(featureName))
+        {
+            var keyString = $"{item.Item1}:{item.Item2}";
+            if (counts[featureName].ContainsKey(keyString))
+            {
+                return counts[featureName][keyString];
+            }
+        }
+        return 0;
+    }
+
+    private void UpdateCounts(Dictionary<string, string> observation)
+    {
+        foreach (var item in observation)
+        {
+            var featureName = GetFeatureName(item);
+            if (!counts.ContainsKey(featureName))
+            {
+                counts[featureName] = new Dictionary<string, int>();
+            }
+            if (!nObs.ContainsKey(featureName))
+            {
+                nObs[featureName] = 0;
+            }
+            var keyString = $"{item.Key}:{item.Value}";
+            counts[featureName][keyString] = counts[featureName].ContainsKey(keyString)
+                ? counts[featureName][keyString] + 1
+                : 1;
+            index.Insert(Tuple.Create(item.Key, item.Value));
+            nObs[featureName]++;
+        }
+    }
+
+    private void UpdateJointCounts(Dictionary<string, string> observation)
+    {
+        var observations = observation.Select(item => $"{item.Key}:{item.Value}").ToList();
+        for (int i = 0; i < observations.Count; i++)
+        {
+            for (int j = i + 1; j < observations.Count; j++)
+            {
+                var pair = $"{observations[i]}:{observations[j]}";
+                if (jointCounts.ContainsKey(pair))
+                {
+                    jointCounts[pair]++;
+                }
+                else
+                {
+                    jointCounts[pair] = 1;
+                }
+            }
+        }
+    }
+
+    private string GetFeatureName(Tuple<string, string> featureTuple)
+    {
+        return featureTuple.Item1;
+    }
+
+    private bool IsNaN(object x)
+    {
+        return !x.Equals(x);
+    }
+}
+```
+---
+    
