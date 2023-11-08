@@ -1507,3 +1507,28 @@ private Dictionary<string, float> ValueScores(Dictionary<string, object> observa
 ```
 ---
     
+> **Indresh** - _(08/11/2023 10:10:02)_
+```
+using System.Collections.Generic;
+using System.Linq;
+
+public int GetMode(Dictionary<string, int> counter)
+{
+    if (counter.Count == 0)
+    {
+        return 0;
+    }
+
+    var maxCount = counter.Values.Max();
+    var mode = counter.FirstOrDefault(entry => entry.Value == maxCount);
+    
+    if (mode.Value != null)
+    {
+        return mode.Value;
+    }
+
+    return 0;
+}
+```
+---
+    
