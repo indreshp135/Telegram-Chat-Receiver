@@ -567,3 +567,124 @@ public static class Extensions
 ```
 ---
     
+> **Indresh** - _(08/11/2023 06:29:15)_
+```
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+public class IncrementingDict<TKey>
+{
+    private Dictionary<TKey, int> dictionary = new Dictionary<TKey, int>();
+    private int nextValue = 0;
+
+    public void Insert(TKey key)
+    {
+        if (!dictionary.ContainsKey(key))
+        {
+            dictionary[key] = nextValue;
+            nextValue++;
+        }
+    }
+
+    public int this[TKey key]
+    {
+        get { return dictionary[key]; }
+    }
+
+    public int Count => dictionary.Count;
+
+    public bool ContainsKey(TKey key)
+    {
+        return dictionary.ContainsKey(key);
+    }
+}
+
+public class ObservationCounter
+{
+    private Dictionary<string, Dictionary<Tuple<string, string>, int>> counts = new Dictionary<string, Dictionary<Tuple<string, string>, int>();
+    private Dictionary<Tuple<string, string>, int> jointCounts = new Dictionary<Tuple<string, string>, int>();
+    private IncrementingDict<Tuple<string, string>> index = new IncrementingDict<Tuple<string, string>();
+    private Dictionary<string, int> nObs = new Dictionary<string, int>();
+
+    public Dictionary<string, Dictionary<Tuple<string, string>, int>> Counts => counts.ToDictionary(entry => entry.Key, entry => new Dictionary<Tuple<string, string>, int>(entry.Value));
+    public Dictionary<Tuple<string, string>, int> JointCounts => new Dictionary<Tuple<string, string>, int>(jointCounts);
+    public IncrementingDict<Tuple<string, string>> Index => index;
+    
+    public void Update(List<Dictionary<string, string>> observationList)
+    {
+        foreach (var observation in observationList)
+        {
+            var obs = observation.Where(entry => !IsNaN(entry.Value)).ToDictionary(entry => entry.Key, entry => entry.Value);
+            UpdateCounts(obs);
+            UpdateJointCounts(obs);
+        }
+    }
+
+    public int GetCount(Tuple<string, string> item)
+    {
+        var featureName = GetFeatureName(item);
+        if (counts.ContainsKey(featureName))
+        {
+            if (counts[featureName].ContainsKey(item))
+            {
+                return counts[featureName][item];
+            }
+        }
+        return 0;
+    }
+
+    private void UpdateCounts(Dictionary<string, string> observation)
+    {
+        foreach (var item in observation)
+        {
+            var featureName = GetFeatureName(item);
+            if (!counts.ContainsKey(featureName))
+            {
+                counts[featureName] = new Dictionary<Tuple<string, string>, int>();
+            }
+            if (!nObs.ContainsKey(featureName))
+            {
+                nObs[featureName] = 0;
+            }
+            counts[featureName][Tuple.Create(item.Key, item.Value)] = counts[featureName].ContainsKey(Tuple.Create(item.Key, item.Value))
+                ? counts[featureName][Tuple.Create(item.Key, item.Value)] + 1
+                : 1;
+            index.Insert(Tuple.Create(item.Key, item.Value));
+            nObs[featureName]++;
+        }
+    }
+
+    private void UpdateJointCounts(Dictionary<string, string> observation)
+    {
+        var observations = observation.Select(item => Tuple.Create(item.Key, item.Value)).ToList();
+        for (int i = 0; i < observations.Count; i++)
+        {
+            for (int j = i + 1; j < observations.Count; j++)
+            {
+                var pair = Tuple.Create(observations[i], observations[j]);
+                if (jointCounts.ContainsKey(pair))
+                {
+                    jointCounts[pair]++;
+                }
+                else
+                {
+                    jointCounts[pair] = 1;
+                }
+            }
+        }
+    }
+
+    private string GetFeatureName(Tuple<string, string> featureTuple)
+    {
+        return featureTuple.Item1;
+    }
+
+    private bool IsNaN(object x)
+    {
+        return !x.Equals(x);
+    }
+}
+```
+---
+    
