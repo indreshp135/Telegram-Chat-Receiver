@@ -441,3 +441,129 @@ else:
 ```
 ---
     
+> **Indresh** - _(08/11/2023 06:25:45)_
+```
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+public class ObservationCounter
+{
+    private Dictionary<string, Dictionary<string, int>> _counts = new Dictionary<string, Dictionary<string, int>>();
+    private Dictionary<Tuple<string, string>, int> _jointCounts = new Dictionary<Tuple<string, string>, int>();
+    private Dictionary<Tuple<string, string>, int> _index = new Dictionary<Tuple<string, string>, int>();
+    private Dictionary<string, int> _nObs = new Dictionary<string, int>();
+
+    public Dictionary<string, Dictionary<string, int>> Counts
+    {
+        get { return new Dictionary<string, Dictionary<string, int>>(_counts); }
+    }
+
+    public Dictionary<Tuple<string, string>, int> JointCounts
+    {
+        get { return new Dictionary<Tuple<string, string>, int>(_jointCounts); }
+    }
+
+    public Dictionary<Tuple<string, string>, int> Index
+    {
+        get { return new Dictionary<Tuple<string, string>, int>(_index); }
+    }
+
+    public void Update(List<Dictionary<string, string>> observationList)
+    {
+        foreach (var observation in observationList)
+        {
+            Dictionary<string, string> obs = observation.Where(item => !IsNaN(item.Value)).ToDictionary(item => item.Key, item => item.Value);
+            var obs1 = obs.ToList();
+            var obs2 = obs.ToList();
+            UpdateCounts(obs1);
+            UpdateJointCounts(obs2);
+        }
+    }
+
+    public int GetCount(Tuple<string, string> item)
+    {
+        string featureName = item.Item1;
+        if (_counts.TryGetValue(featureName, out Dictionary<string, int> featureCounts))
+        {
+            if (featureCounts.TryGetValue(item.Item2, out int count))
+            {
+                return count;
+            }
+        }
+        return 0;
+    }
+
+    private void UpdateCounts(List<KeyValuePair<string, string>> observation)
+    {
+        foreach (var item in observation)
+        {
+            string featureName = item.Key;
+            if (!_counts.ContainsKey(featureName))
+            {
+                _counts[featureName] = new Dictionary<string, int>();
+            }
+            if (_index.TryAdd(item, 0))
+            {
+                _index[item] = 0;
+            }
+            if (!_nObs.ContainsKey(featureName))
+            {
+                _nObs[featureName] = 0;
+            }
+            _counts[featureName][item.Value] = _counts[featureName].GetValueOrDefault(item.Value) + 1;
+            _nObs[featureName] = _nObs.GetValueOrDefault(featureName) + 1;
+        }
+    }
+
+    private void UpdateJointCounts(List<KeyValuePair<string, string>> observations)
+    {
+        var pairs = observations.OrderBy(item => item.Key).Combinations(2).ToList();
+        foreach (var pair in pairs)
+        {
+            var featureTuple1 = pair[0];
+            var featureTuple2 = pair[1];
+            var key = Tuple.Create(featureTuple1, featureTuple2);
+            if (!_jointCounts.ContainsKey(key))
+            {
+                _jointCounts[key] = 0;
+            }
+            _jointCounts[key] += 1;
+        }
+    }
+
+    public bool IsNaN(object x)
+    {
+        return !x.Equals(x);
+    }
+}
+
+public static class Extensions
+{
+    public static List<List<T>> Combinations<T>(this IEnumerable<T> elements, int k)
+    {
+        List<List<T>> result = new List<List<T>>();
+        if (k == 0 || elements.Count() == 0)
+        {
+            result.Add(new List<T>());
+            return result;
+        }
+        var head = elements.First();
+        var tail = elements.Skip(1);
+        var withoutHead = tail.Combinations(k);
+        foreach (var comb in withoutHead)
+        {
+            result.Add(comb);
+        }
+        var withHead = tail.Combinations(k - 1);
+        foreach (var comb in withHead)
+        {
+            comb.Insert(0, head);
+            result.Add(comb);
+        }
+        return result;
+    }
+}
+```
+---
+    
