@@ -1246,3 +1246,75 @@ namespace CoupledBiasedRandomWalks
 ```
 ---
     
+> **Indresh** - _(08/11/2023 09:56:16)_
+```
+private Dictionary<string, float> ValueScores(Dictionary<string, object> observation)
+        {
+            return observation.ToDictionary(
+                kvp => GetFeatureName(kvp.Key),
+                kvp => GetFeatureRelevance(kvp.Key) * this.stationaryProb.GetValueOrDefault(kvp.Key, this.unknownFeatureScore)
+            );
+        }
+
+        private float GetFeatureRelevance(string feature)
+        {
+            var featureName = GetFeatureName(feature);
+            return this.featureRelevance.GetValueOrDefault(featureName, 0);
+        }
+
+        private float[] RandomWalk(CSRMatrix transitionMatrix, Dictionary<string, float> rwParams)
+        {
+            // Implement your random walk logic here
+            // This involves performing matrix operations and iteration based on the given parameters
+            // You'll need to use external libraries for matrix operations
+            // Return the result as a float array
+            throw new NotImplementedException();
+        }
+
+        private CSRMatrix ComputeBiasedTransitionMatrix()
+        {
+            // Implement your logic to compute the biased transition matrix
+            // This involves calculations based on the counter data
+            // You'll need external libraries for matrix operations
+            // Return the result as a CSRMatrix
+            throw new NotImplementedException();
+        }
+
+        private void UpdateCounter(Dictionary<string, object> observation)
+        {
+            // Implement your logic to update the counter based on the observation
+            // This involves updating the counter dictionary with counts
+            throw new NotImplementedException();
+        }
+
+        private string GetFeatureName(string feature)
+        {
+            // Implement your logic to extract the feature name from the feature string
+            throw new NotImplementedException();
+        }
+
+        private int GetMode(IEnumerable<int> values)
+        {
+            // Implement your logic to calculate the mode from a collection of values
+            throw new NotImplementedException();
+        }
+    }
+
+    class CBRWError : Exception
+    {
+        public CBRWError(string message) : base(message) { }
+    }
+
+    class CBRWFitException : CBRWError
+    {
+        public CBRWFitException(string message) : base(message) { }
+    }
+
+    class CBRWScoreException : CBRWError
+    {
+        public CBRWScoreException(string message) : base(message) { }
+    }
+}
+```
+---
+    
