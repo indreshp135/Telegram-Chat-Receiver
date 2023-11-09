@@ -1612,3 +1612,39 @@ public class YourTestClass
 ```
 ---
     
+> **Indresh** - _(09/11/2023 10:20:30)_
+```
+using System;
+using System.Collections.Generic;
+
+class Program
+{
+    static void Main()
+    {
+        List<Dictionary<string, string>> data = new List<Dictionary<string, string>>
+        {
+            new Dictionary<string, string> { { "Gender", "male" }, { "Education", "master" }, { "Marriage", "divorced" }, { "Income", "low" } },
+            new Dictionary<string, string> { { "Gender", "female" }, { "Education", "master" }, { "Marriage", "married" }, { "Income", "medium" } },
+            new Dictionary<string, string> { { "Gender", "male" }, { "Education", "master" }, { "Marriage", "single" }, { "Income", "high" } },
+            new Dictionary<string, string> { { "Gender", "male" }, { "Education", "bachelor" }, { "Marriage", "married" }, { "Income", "medium" } },
+            new Dictionary<string, string> { { "Gender", "female" }, { "Education", "master" }, { "Marriage", "divorced" }, { "Income", "high" } },
+            new Dictionary<string, string> { { "Gender", "male" }, { "Education", "PhD" }, { "Marriage", "married" }, { "Income", "high" } },
+            new Dictionary<string, string> { { "Gender", "male" }, { "Education", "master" }, { "Marriage", "single" }, { "Income", "high" } },
+            new Dictionary<string, string> { { "Gender", "female" }, { "Education", "PhD" }, { "Marriage", "single" }, { "Income", "medium" } },
+            new Dictionary<string, string> { { "Gender", "male" }, { "Education", "PhD" }, { "Marriage", "married" }, { "Income", "medium" } },
+            new Dictionary<string, string> { { "Gender", "male" }, { "Education", "bachelor" }, { "Marriage", "single" }, { "Income", "low" } },
+            new Dictionary<string, string> { { "Gender", "female" }, { "Education", "PhD" }, { "Marriage", "married" }, { "Income", "medium" } },
+            new Dictionary<string, string> { { "Gender", "male" }, { "Education", "master" }, { "Marriage", "single" }, { "Income", "low" } }
+        };
+
+        // Accessing the data:
+        Console.WriteLine("Gender of the first entry: " + data[0]["Gender"]);
+        Console.WriteLine("Education of the second entry: " + data[1]["Education"]);
+        // Access other fields as needed...
+
+        // You can loop through the list and dictionaries to process the data.
+    }
+}
+```
+---
+    
