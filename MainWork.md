@@ -1532,3 +1532,83 @@ public int GetMode(Dictionary<string, int> counter)
 ```
 ---
     
+> **Indresh** - _(09/11/2023 10:04:16)_
+```
+using System;
+using System.Collections.Generic;
+
+public class YourTestClass
+{
+    private Dictionary<string, Dictionary<string, List<Tuple<Tuple<string, string>, int>>>> table;
+    private Dictionary<Tuple<string, string>, int> jointCounts;
+
+    // Your existing methods and setup here...
+
+    public void YourTestMethod()
+    {
+        Dictionary<string, Dictionary<string, List<Tuple<Tuple<string, string>, int>>>> table = new Dictionary<string, Dictionary<string, List<Tuple<Tuple<string, string>, int>>>>()
+        {
+            { "feature_a", new Dictionary<string, List<Tuple<Tuple<string, string>, int>>>()
+                {
+                    { "expected", new List<Tuple<Tuple<string, string>, int>>()
+                        {
+                            new Tuple<Tuple<string, string>, int>(Tuple.Create("feature_a", "a_val_1"), 2)
+                        }
+                    }
+                }
+            },
+            { "feature_b", new Dictionary<string, List<Tuple<Tuple<string, string>, int>>>()
+                {
+                    { "expected", new List<Tuple<Tuple<string, string>, int>>()
+                        {
+                            new Tuple<Tuple<string, string>, int>(Tuple.Create("feature_b", "b_val_1"), 2)
+                        }
+                    }
+                }
+            },
+            { "feature_c", new Dictionary<string, List<Tuple<Tuple<string, string>, int>>>()
+                {
+                    { "expected", new List<Tuple<Tuple<string, string>, int>>()
+                        {
+                            new Tuple<Tuple<string, string>, int>(Tuple.Create("feature_c", "c_val_1"), 1),
+                            new Tuple<Tuple<string, string>, int>(Tuple.Create("feature_c", "c_val_2"), 1)
+                        }
+                    }
+                }
+            }
+        };
+
+        foreach (var entry in table)
+        {
+            string feature = entry.Key;
+            var test = entry.Value;
+            var counts = GetCounts(feature); // Assuming GetCounts is a method you define
+            // You may need to adapt the comparison logic based on your needs
+            // This is just a basic placeholder
+            // Note: assertCountEqual doesn't directly translate, so adjust accordingly
+            // this.AssertCountEqual(counts, test["expected"], feature);
+        }
+
+        // Test joint_counts
+        Dictionary<Tuple<Tuple<string, string>, Tuple<string, string>>, int> expectedJointCounts = new Dictionary<Tuple<Tuple<string, string>, Tuple<string, string>>, int>()
+        {
+            { Tuple.Create(Tuple.Create("feature_a", "a_val_1"), Tuple.Create("feature_b", "b_val_1")), 2 },
+            { Tuple.Create(Tuple.Create("feature_a", "a_val_1"), Tuple.Create("feature_c", "c_val_1")), 1 },
+            { Tuple.Create(Tuple.Create("feature_a", "a_val_1"), Tuple.Create("feature_c", "c_val_2")), 1 },
+            { Tuple.Create(Tuple.Create("feature_b", "b_val_1"), Tuple.Create("feature_c", "c_val_1")), 1 },
+            { Tuple.Create(Tuple.Create("feature_b", "b_val_1"), Tuple.Create("feature_c", "c_val_2")), 1 },
+        };
+
+        // You may need to adapt the comparison logic based on your needs
+        // This is just a basic placeholder
+        // Note: assertDictEqual doesn't directly translate, so adjust accordingly
+        // this.AssertDictEqual(this.jointCounts, expectedJointCounts);
+    }
+
+    // Your existing methods here...
+
+    // Define your other methods as needed...
+}
+```
+---
+    
