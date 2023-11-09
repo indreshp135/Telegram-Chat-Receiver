@@ -1648,3 +1648,87 @@ class Program
 ```
 ---
     
+> **Indresh** - _(09/11/2023 16:18:42)_
+```
+using System;
+using System.Collections.Generic;
+
+class Detector
+{
+    public List<double> Score(List<Dictionary<string, string>> observations)
+    {
+        // Implementation of the score method
+        // Replace this with the actual implementation
+        List<double> scores = new List<double>();
+        // ...
+
+        return scores;
+    }
+
+    public List<Dictionary<string, double>> ValueScores(List<Dictionary<string, string>> observations)
+    {
+        // Implementation of the value_scores method
+        // Replace this with the actual implementation
+        List<Dictionary<string, double>> valueScores = new List<Dictionary<string, double>>();
+        // ...
+
+        return valueScores;
+    }
+
+    // Other members of the Detector class can be added here
+}
+
+class Program
+{
+    static void Main()
+    {
+        Detector detector = new Detector();
+        List<Dictionary<string, string>> observations = new List<Dictionary<string, string>> { /* Add your observations here */ };
+
+        List<double> scores = detector.Score(observations);
+        List<Dictionary<string, double>> valueScores = detector.ValueScores(observations);
+
+        // Display results
+        Console.WriteLine($"Detector fit with {observations.Count} observations:");
+        for (int i = 0; i < observations.Count; i++)
+        {
+            Console.WriteLine($"Observation ID {i + 1}: {DictionaryToString(observations[i])}");
+        }
+
+        Console.WriteLine("\nScores:");
+        for (int i = 0; i < scores.Count; i++)
+        {
+            Console.WriteLine($"Observation ID {i + 1}: {Math.Round(scores[i], 4)}");
+        }
+
+        Console.WriteLine("\nValue scores per attribute:");
+        for (int i = 0; i < valueScores.Count; i++)
+        {
+            Console.WriteLine($"Observation ID {i + 1}: {RoundDictionaryValues(valueScores[i], 4)}");
+        }
+    }
+
+    static string DictionaryToString(Dictionary<string, string> dictionary)
+    {
+        // Convert dictionary to string for display
+        // Replace this with the actual implementation
+        // This is a simple example; you can customize it based on your needs
+        return string.Join(", ", dictionary.Select(kv => $"{kv.Key}: {kv.Value}"));
+    }
+
+    static Dictionary<string, double> RoundDictionaryValues(Dictionary<string, double> dictionary, int decimalPlaces)
+    {
+        // Implement rounding for dictionary values
+        // Replace this with the actual implementation
+        Dictionary<string, double> roundedDictionary = new Dictionary<string, double>();
+        foreach (var entry in dictionary)
+        {
+            roundedDictionary.Add(entry.Key, Math.Round(entry.Value, decimalPlaces));
+        }
+
+        return roundedDictionary;
+    }
+}
+```
+---
+    
