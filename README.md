@@ -1,6 +1,142 @@
-**My academic journey was affected by several personal and economic problems and almost came to a halt.** In 2018, my father's business failed, and my mother became severely ill with Guillain-Barré syndrome, unable to move. Despite having near-perfect scores, this forced me to prioritize family over higher education. However, I continued learning and developing web development skills to support my family through freelancing. **This challenging period taught me resilience.** When circumstances improved, I secured scholarships and alumni support to attend NIT-Trichy, a top public university. **My freelancing experience helped me win several competitions and provided financial stability.**  
-*"The true purpose of knowledge is to help others, for it is through serving others that we serve ourselves."* – Albert Einstein.  
-**This experience made me aware of the barriers many students face in accessing education.** I also noticed many educated women in India, including my mother, are forced into homemaking because of social and marital pressures. Driven by this, we created a tool for an NGO that allowed women to teach underprivileged students for free, with donations paying the teachers. **This was a small step towards empowering women and children's education.**  
-**My love and respect for mothers also motivated my actions.** I know the importance of a mother in bringing another human into this world. Sadly, many women lose their lives during childbirth. **This has deeply saddened me.** For the Google Solution Challenge, we worked on automating the process of creating ePartograms, which helps nurses make quick decisions during labor. **This tool is essential in rural areas with limited medical resources and can potentially save lives.**  
-**Through my experiences, I have worked with people from diverse backgrounds.** During the Singapore-India Hackathon, I collaborated with a teammate of Chinese origin. Initially, we faced difficulties in understanding each other due to different accents. **However, with time, we learned to communicate effectively.** Previously, I also worked with an NGO to support a regional initiative, *"Thirumathikart,"* a tool to assist women's self-help groups in rural Tiruchirappalli. I worked with local people to build a website and educated women on how to use it. **I learned the importance of patience and clear communication when working with individuals from diverse backgrounds and varying levels of understanding.** This helped them to learn and grow, creating a more inclusive environment.  
-**We didn't have a computer when I was a kid, so I depended on others.** I understand people's struggles when they can't access technology. In my SoP, I mentioned my research interest at UCLA, which is part of my larger goal to make technology more accessible and reduce e-waste. **Imagine placing your fingerprint on someone else's phone and all your apps and data load.** With advancements in cloud computing and faster networks, we’re moving toward a future where multiple people can use the same device. **But current identity solutions aren't ready for this shift.** My research will focus on creating these new identity solutions that can also foster shared devices, allowing multiple users to access technology while reducing e-waste and enabling more efficient use of hardware. **I also believe that working with professors from different fields will help me reach this broader goal and find ways to serve people and the planet, both during my research at UCLA and after graduation.**
+public class CsvFieldValidator
+{
+    private readonly Dictionary<Type, Func<string, bool>> _typeValidators;
+    private readonly Dictionary<Type, string> _typeDefaults;
+
+    public CsvFieldValidator()
+    {
+        _typeValidators = new Dictionary<Type, Func<string, bool>>
+        {
+            { typeof(int), value => int.TryParse(value, out _) },
+            { typeof(long), value => long.TryParse(value, out _) },
+            { typeof(decimal), value => decimal.TryParse(value, out _) },
+            { typeof(double), value => double.TryParse(value, out _) },
+            { typeof(DateTime), value => DateTime.TryParse(value, out _) },
+            { typeof(bool), value => bool.TryParse(value, out _) },
+            { typeof(Guid), value => Guid.TryParse(value, out _) }
+        };
+
+        _typeDefaults = new Dictionary<Type, string>
+        {
+            { typeof(int), "0" },
+            { typeof(long), "0" },
+            { typeof(decimal), "0.0" },
+            { typeof(double), "0.0" },
+            { typeof(DateTime), DateTime.MinValue.ToString("yyyy-MM-dd") },
+            { typeof(bool), "false" },
+            { typeof(Guid), Guid.Empty.ToString() },
+            { typeof(string), "" }
+        };
+    }
+
+    public (bool IsValid, string ErrorMessage, string DefaultValue) ValidateField(string value, Type expectedType)
+    {
+        // Empty values should get default value for type
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return (false, "Empty value", GetDefaultValue(expectedType));
+        }
+
+        // String type is always valid
+        if (expectedType == typeof(string))
+        {
+            return (true, null, value);
+        }
+
+        // Check if we have a validator for this type
+        if (_typeValidators.TryGetValue(expectedType, out var validator))
+        {
+            bool isValid = validator(value);
+            if (!isValid)
+            {
+                return (false, 
+                    $"Cannot parse '{value}' to type {expectedType.Name}", 
+                    GetDefaultValue(expectedType));
+            }
+            return (true, null, value);
+        }
+
+        // If no validator found, return as is
+        return (true, null, value);
+    }
+
+    private string GetDefaultValue(Type type)
+    {
+        return _typeDefaults.TryGetValue(type, out var defaultValue) 
+            ? defaultValue 
+            : string.Empty;
+    }
+}
+
+public class CsvErrorHandler
+{
+    private readonly ILogger _logger;
+    private readonly CsvConfiguration _csvConfig;
+    private readonly CsvFieldValidator _validator;
+
+    public CsvErrorHandler(ILogger logger)
+    {
+        _logger = logger;
+        _validator = new CsvFieldValidator();
+        _csvConfig = new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            ReadingExceptionOccurred = context =>
+            {
+                var record = context.Exception.ReadingContext.RawRecord;
+                var fields = record.Split(',').ToList();
+                var hasErrors = false;
+                var properties = typeof(SampleData).GetProperties();
+
+                for (int i = 0; i < Math.Min(fields.Count, properties.Length); i++)
+                {
+                    var (isValid, errorMessage, defaultValue) = _validator.ValidateField(
+                        fields[i], 
+                        properties[i].PropertyType
+                    );
+
+                    if (!isValid)
+                    {
+                        hasErrors = true;
+                        _logger.LogError($"Row {context.Exception.ReadingContext.RawRow}, Field {properties[i].Name}: {errorMessage}. Using default value: {defaultValue}");
+                        fields[i] = defaultValue;
+                    }
+                }
+
+                if (hasErrors)
+                {
+                    context.Exception.ReadingContext.RawRecord = string.Join(",", fields);
+                    return true; // Continue with cleaned data
+                }
+
+                return false; // No errors found
+            }
+        };
+    }
+
+    public IEnumerable<T> ReadCsvFile<T>(string filePath)
+    {
+        using var reader = new StreamReader(filePath);
+        using var csv = new CsvReader(reader, _csvConfig);
+        
+        var records = new List<T>();
+        
+        while (csv.Read())
+        {
+            try
+            {
+                var record = csv.GetRecord<T>();
+                if (record != null)
+                {
+                    records.Add(record);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error processing record: {ex.Message}");
+                // Continue to next record
+            }
+        }
+        
+        return records;
+    }
+}
