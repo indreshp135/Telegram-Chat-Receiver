@@ -1,142 +1,178 @@
-public class CsvFieldValidator
+Here's a comprehensive implementation for scalable drift detection:
+
+```csharp
+public class ScalableMerkleTreeDriftDetector
 {
-    private readonly Dictionary<Type, Func<string, bool>> _typeValidators;
-    private readonly Dictionary<Type, string> _typeDefaults;
-
-    public CsvFieldValidator()
+    public class MerkleNode
     {
-        _typeValidators = new Dictionary<Type, Func<string, bool>>
-        {
-            { typeof(int), value => int.TryParse(value, out _) },
-            { typeof(long), value => long.TryParse(value, out _) },
-            { typeof(decimal), value => decimal.TryParse(value, out _) },
-            { typeof(double), value => double.TryParse(value, out _) },
-            { typeof(DateTime), value => DateTime.TryParse(value, out _) },
-            { typeof(bool), value => bool.TryParse(value, out _) },
-            { typeof(Guid), value => Guid.TryParse(value, out _) }
-        };
-
-        _typeDefaults = new Dictionary<Type, string>
-        {
-            { typeof(int), "0" },
-            { typeof(long), "0" },
-            { typeof(decimal), "0.0" },
-            { typeof(double), "0.0" },
-            { typeof(DateTime), DateTime.MinValue.ToString("yyyy-MM-dd") },
-            { typeof(bool), "false" },
-            { typeof(Guid), Guid.Empty.ToString() },
-            { typeof(string), "" }
-        };
+        public string Hash { get; set; }
+        public string RecordId { get; set; }
+        public MerkleNode Left { get; set; }
+        public MerkleNode Right { get; set; }
     }
 
-    public (bool IsValid, string ErrorMessage, string DefaultValue) ValidateField(string value, Type expectedType)
+    public async Task<List<string>> DetectDriftAsync(
+        IQueryable<DataRecord> sourceRecords, 
+        IQueryable<DataRecord> localRecords,
+        int batchSize = 100000)
     {
-        // Empty values should get default value for type
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return (false, "Empty value", GetDefaultValue(expectedType));
-        }
+        var driftedRecordIds = new ConcurrentBag<string>();
 
-        // String type is always valid
-        if (expectedType == typeof(string))
-        {
-            return (true, null, value);
-        }
-
-        // Check if we have a validator for this type
-        if (_typeValidators.TryGetValue(expectedType, out var validator))
-        {
-            bool isValid = validator(value);
-            if (!isValid)
+        await Parallel.ForEachAsync(
+            GetBatches(sourceRecords, batchSize), 
+            new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount },
+            async (batch, token) =>
             {
-                return (false, 
-                    $"Cannot parse '{value}' to type {expectedType.Name}", 
-                    GetDefaultValue(expectedType));
-            }
-            return (true, null, value);
-        }
+                var sourceMerkleTree = BuildMerkleTree(batch);
+                var correspondingLocalBatch = GetCorrespondingLocalBatch(batch, localRecords);
+                var localMerkleTree = BuildMerkleTree(correspondingLocalBatch);
 
-        // If no validator found, return as is
-        return (true, null, value);
+                var batchDriftedRecords = FindDriftedRecordIds(sourceMerkleTree, localMerkleTree);
+                foreach (var recordId in batchDriftedRecords)
+                {
+                    driftedRecordIds.Add(recordId);
+                }
+            }
+        );
+
+        return driftedRecordIds.ToList();
     }
 
-    private string GetDefaultValue(Type type)
+    private IEnumerable<IQueryable<DataRecord>> GetBatches(
+        IQueryable<DataRecord> records, 
+        int batchSize)
     {
-        return _typeDefaults.TryGetValue(type, out var defaultValue) 
-            ? defaultValue 
-            : string.Empty;
+        for (int i = 0; i < records.Count(); i += batchSize)
+        {
+            yield return records
+                .Skip(i)
+                .Take(batchSize)
+                .OrderBy(r => r.Id);
+        }
+    }
+
+    private MerkleNode BuildMerkleTree(IQueryable<DataRecord> records)
+    {
+        var leaves = records
+            .Select(r => new MerkleNode 
+            { 
+                Hash = ComputeRecordHash(r),
+                RecordId = r.Id 
+            })
+            .ToList();
+
+        return BuildTreeFromLeaves(leaves);
+    }
+
+    private MerkleNode BuildTreeFromLeaves(List<MerkleNode> leaves)
+    {
+        if (leaves.Count % 2 == 1)
+            leaves.Add(leaves[leaves.Count - 1]);
+
+        while (leaves.Count > 1)
+        {
+            var parentLevel = new List<MerkleNode>();
+
+            for (int i = 0; i < leaves.Count; i += 2)
+            {
+                var left = leaves[i];
+                var right = leaves[i + 1];
+                var parentNode = new MerkleNode
+                {
+                    Left = left,
+                    Right = right,
+                    Hash = ComputeParentHash(left.Hash, right.Hash)
+                };
+                parentLevel.Add(parentNode);
+            }
+
+            leaves = parentLevel;
+        }
+
+        return leaves[0];
+    }
+
+    private List<string> FindDriftedRecordIds(
+        MerkleNode sourceTree, 
+        MerkleNode localTree)
+    {
+        var driftedRecords = new List<string>();
+        CompareNodes(sourceTree, localTree, driftedRecords);
+        return driftedRecords;
+    }
+
+    private void CompareNodes(
+        MerkleNode sourceNode, 
+        MerkleNode localNode, 
+        List<string> driftedRecords, 
+        string currentPath = "")
+    {
+        if (sourceNode.Hash != localNode.Hash)
+        {
+            if (sourceNode.Left == null)
+            {
+                driftedRecords.Add(sourceNode.RecordId);
+                return;
+            }
+
+            CompareNodes(
+                sourceNode.Left, 
+                localNode.Left, 
+                driftedRecords, 
+                currentPath + "0"
+            );
+            CompareNodes(
+                sourceNode.Right, 
+                localNode.Right, 
+                driftedRecords, 
+                currentPath + "1"
+            );
+        }
+    }
+
+    private string ComputeRecordHash(DataRecord record)
+    {
+        using var sha256 = SHA256.Create();
+        var hashInput = JsonSerializer.Serialize(record);
+        var hashBytes = Encoding.UTF8.GetBytes(hashInput);
+        return Convert.ToBase64String(sha256.ComputeHash(hashBytes));
+    }
+
+    private string ComputeParentHash(string leftHash, string rightHash)
+    {
+        using var sha256 = SHA256.Create();
+        var combinedHash = leftHash + rightHash;
+        var hashBytes = Encoding.UTF8.GetBytes(combinedHash);
+        return Convert.ToBase64String(sha256.ComputeHash(hashBytes));
+    }
+
+    private IQueryable<DataRecord> GetCorrespondingLocalBatch(
+        IQueryable<DataRecord> sourceBatch, 
+        IQueryable<DataRecord> localRecords)
+    {
+        var sourceIds = sourceBatch.Select(r => r.Id).ToHashSet();
+        return localRecords.Where(r => sourceIds.Contains(r.Id));
     }
 }
 
-public class CsvErrorHandler
+public class DataRecord
 {
-    private readonly ILogger _logger;
-    private readonly CsvConfiguration _csvConfig;
-    private readonly CsvFieldValidator _validator;
-
-    public CsvErrorHandler(ILogger logger)
-    {
-        _logger = logger;
-        _validator = new CsvFieldValidator();
-        _csvConfig = new CsvConfiguration(CultureInfo.InvariantCulture)
-        {
-            ReadingExceptionOccurred = context =>
-            {
-                var record = context.Exception.ReadingContext.RawRecord;
-                var fields = record.Split(',').ToList();
-                var hasErrors = false;
-                var properties = typeof(SampleData).GetProperties();
-
-                for (int i = 0; i < Math.Min(fields.Count, properties.Length); i++)
-                {
-                    var (isValid, errorMessage, defaultValue) = _validator.ValidateField(
-                        fields[i], 
-                        properties[i].PropertyType
-                    );
-
-                    if (!isValid)
-                    {
-                        hasErrors = true;
-                        _logger.LogError($"Row {context.Exception.ReadingContext.RawRow}, Field {properties[i].Name}: {errorMessage}. Using default value: {defaultValue}");
-                        fields[i] = defaultValue;
-                    }
-                }
-
-                if (hasErrors)
-                {
-                    context.Exception.ReadingContext.RawRecord = string.Join(",", fields);
-                    return true; // Continue with cleaned data
-                }
-
-                return false; // No errors found
-            }
-        };
-    }
-
-    public IEnumerable<T> ReadCsvFile<T>(string filePath)
-    {
-        using var reader = new StreamReader(filePath);
-        using var csv = new CsvReader(reader, _csvConfig);
-        
-        var records = new List<T>();
-        
-        while (csv.Read())
-        {
-            try
-            {
-                var record = csv.GetRecord<T>();
-                if (record != null)
-                {
-                    records.Add(record);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Error processing record: {ex.Message}");
-                // Continue to next record
-            }
-        }
-        
-        return records;
-    }
+    public string Id { get; set; }
+    // Other properties
 }
+```
+
+Usage example:
+```csharp
+var driftDetector = new ScalableMerkleTreeDriftDetector();
+var driftedRecords = await driftDetector.DetectDriftAsync(
+    sourceDbContext.Records, 
+    localDbContext.Records
+);
+
+// Process drifted records
+foreach (var recordId in driftedRecords)
+{
+    // Perform individual record sync
+}
+```
