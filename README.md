@@ -1,8 +1,19 @@
 ```js
 import React, { useState } from 'react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Eye, EyeOff, RefreshCw } from 'lucide-react';
+import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+import IconButton from '@mui/material/IconButton';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
+import { styled } from '@mui/material/styles';
+
+// Styled component to handle the layout
+const PasswordWrapper = styled('div')({
+  position: 'relative',
+  width: '100%',
+  maxWidth: '400px'
+});
 
 const PasswordInput = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -19,42 +30,47 @@ const PasswordInput = () => {
     setPassword(newPassword);
   };
 
+  const handleClickShowPassword = () => {
+    setShowPassword(!showPassword);
+  };
+
+  const handleMouseDownPassword = (event) => {
+    event.preventDefault();
+  };
+
   return (
-    <div className="relative w-full max-w-md">
-      <div className="relative">
-        <Input
-          type={showPassword ? 'text' : 'password'}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="pr-24"
-          placeholder="Enter password"
-        />
-        <div className="absolute inset-y-0 right-0 flex">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-full px-2 hover:bg-transparent"
-            onClick={() => setShowPassword(!showPassword)}
-          >
-            {showPassword ? (
-              <EyeOff className="h-4 w-4 text-gray-500" />
-            ) : (
-              <Eye className="h-4 w-4 text-gray-500" />
-            )}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-full px-2 hover:bg-transparent"
-            onClick={generatePassword}
-          >
-            <RefreshCw className="h-4 w-4 text-gray-500" />
-          </Button>
-        </div>
-      </div>
-    </div>
+    <PasswordWrapper>
+      <TextField
+        fullWidth
+        variant="outlined"
+        type={showPassword ? 'text' : 'password'}
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Enter password"
+        InputProps={{
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton
+                aria-label="toggle password visibility"
+                onClick={handleClickShowPassword}
+                onMouseDown={handleMouseDownPassword}
+                edge="end"
+                sx={{ mr: 1 }}
+              >
+                {showPassword ? <VisibilityOff /> : <Visibility />}
+              </IconButton>
+              <IconButton
+                aria-label="generate password"
+                onClick={generatePassword}
+                edge="end"
+              >
+                <AutorenewIcon />
+              </IconButton>
+            </InputAdornment>
+          ),
+        }}
+      />
+    </PasswordWrapper>
   );
 };
 
