@@ -1,31 +1,68 @@
-# RE: Missing Mailing Address for UC San Diego Application
+Got it! Here's the updated version of your email with the correct understanding:
 
-Dear Graduate Admissions,
 
-Thank you for your email regarding my application to UC San Diego. I'm happy to provide my complete mailing address for your records:
+---
 
-Indresh Pradeepkumar
-11/16 Sridevi Nagar, 4th Street
-P & T Colony Road
-Coimbatore
-Tamil Nadu 641022
-INDIA
+Subject: Understanding Azure IAM Concepts
 
-For your convenience, I've also included my information in table format below:
+Hi [Recipient's Name],
 
-| Field          | Information                                    |
-|----------------|------------------------------------------------|
-| Name           | Indresh Pradeepkumar                           |
-| Street Address | 11/16 Sridevi Nagar, 4th Street                |
-| Additional     | P & T Colony Road                              |
-| City           | Coimbatore                                     |
-| State          | Tamil Nadu                                     |
-| Postal Code    | 641022                                         |
-| Country        | INDIA                                          |
+I hope you are doing well. I wanted to share my understanding of Azure IAM concepts, covering key terms and their relationships.
 
-Please let me know if you need any additional information to complete my application. I look forward to hearing more about my application status.
+Key Concepts
 
-Thank you for your assistance.
+Principals
+
+Principals are security entities that can be authenticated and authorized to access resources. They are:
+
+Users – Individual accounts with access.
+
+Groups – Collections of users (similar to entitlements in our case).
+
+Service Principals – Identities used by applications, tools, and services to access Azure resources.
+
+
+Service Principals are further classified into:
+
+Managed Identities – Managed by Azure for secure access.
+
+Applications – App registrations in Azure AD with assigned permissions.
+
+
+Roles
+
+Directory Roles – Permissions for Azure resources.
+
+App Roles – Permissions for applications in Azure.
+
+Note: There is no single API to retrieve all app roles at once. We need to fetch them for each principal separately.
+
+
+
+Entitlement Grants and Hierarchy
+
+Direct assignments (not transitive) include:
+
+Group-to-Group (EH)
+
+Role-to-Group (EH)
+
+Role-to-User (EG)
+
+Group-to-User (EG)
+
+
+Policies and Scopes
+
+We also have Privileged Identity Management (PIM), for which we are still working on retrieving data.
+
+Let me know if you have any questions or need further clarification.
 
 Best regards,
-Indresh Pradeepkumar
+[Your Name]
+
+
+---
+
+Is this more aligned with your expectations?
+
