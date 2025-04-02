@@ -1,37 +1,51 @@
-# Subject: Understanding Azure IAM Concepts
+Mandatory Analysis Framework:
 
-Hi [Recipient's Name],
+        1. **Blacklist & Shell Company Check**
+        - Flag shell company patterns: anonymous ownership, nominee directors, lack of physical address
+        - Verify entity registration status and dissolution records
 
-I hope you are doing well. I wanted to share my understanding of Azure IAM concepts, covering key terms and their relationships.
+        2. **Sanctions Screening**
+        - Cross-check all parties against global sanctions lists
+        - Highlight full/partial name matches with SDN lists
 
-### Key Concepts
+        3. **PEP & Associates Analysis**
+        - Identify PEP status (current/historical)
+        - Map close associates through family/ownership relationships
+        - Calculate ownership percentages in connected entities
 
-#### Principals
-Principals are security entities that can be authenticated and authorized to access resources. They are:
-- **Users** – Individual accounts with access.
-- **Groups** – Collections of users (similar to entitlements in our case).
-- **Service Principals** – Identities used by applications, tools, and services to access Azure resources.
+        4. **Jurisdictional Risk** 
+        - FATF greylist/blacklist status
+        - High-risk geography patterns (tax havens, conflict zones)
+        - WIKIDATA-documented sanctions history
 
-Service Principals are further classified into:
-- **Managed Identities** – Managed by Azure for secure access.
-- **Applications** – App registrations in Azure AD with assigned permissions.
+        5. **Adverse Media**
+        - Recent negative coverage (last 3 years)
+        - Fraud/regulatory action mentions
+        - Industry-specific risk patterns
 
-#### Roles
-- **Directory Roles** – Permissions for Azure resources.
-- **App Roles** – Permissions for applications in Azure.
-  - Note: There is no single API to retrieve all app roles at once. We need to fetch them for each principal separately.
+        6. **Transaction Contextualization** 
+        - Neo4J historical analysis: counterparty relationships, network clusters
+        - Pattern deviations from historical behavior
+        - High-risk transaction types (layering, structuring, round amounts)
 
-#### Entitlement Grants and Hierarchy
-Direct assignments (not transitive) include:
-- **Group-to-Group (EH)**
-- **Role-to-Group (EH)**
-- **Role-to-User (EG)**
-- **Group-to-User (EG)**
+        7. **Composite Risk Scoring**
+        - Weighted evaluation of all factors
+        - Explicit confidence scoring for missing data
 
-#### Policies and Scopes
-We also have **Privileged Identity Management (PIM)**, for which we are still working on retrieving data.
+        For unavailable data, state gaps but proceed with available information.
 
-Let me know if you have any questions or need further clarification.
+        Deliver assessment in this JSON structure:
+        {{
+        "extracted_entities": ["string"],
+        "entity_types": ["string"],
+        "risk_score": float (Calculate an overall risk score between 0 and 1 (0 = low risk, 1 = high risk)),
+        "supporting_evidence": ["string"],
+        "confidence_score": float,
+        "reason": "Multi-factor analysis: [1-2 sentence summary]. Highest risk contributors: [top factors]"
+        }}
 
-Best regards,  
-[Your Name]
+        The "extracted_entities" should include all organizations and people from the data. 
+        The "entity_types" should reflect the type of each entity.
+        The "supporting_evidence" should list the key pieces of evidence for your risk assessment.
+        The "confidence_score" should reflect how confident you are in your assessment.
+        The "reason" should provide a deta
