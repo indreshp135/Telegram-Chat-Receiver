@@ -1,3 +1,4 @@
+```C#
 [Fact]
         public async Task ResetCache_OnlyPausesAndResumesAppropriateJobs()
         {
@@ -105,3 +106,4 @@
             // Verify that ResumeJob was NOT called for job3 (was already paused)
             mockScheduler.Verify(s => s.ResumeJob(jobKey3, It.IsAny<CancellationToken>()), Times.Never);
         }
+```
