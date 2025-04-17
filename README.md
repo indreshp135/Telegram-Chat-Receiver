@@ -1,38 +1,4 @@
-```sql
--- Query to retrieve only UPDATE changes after CTV 100 with column change information
-WITH UpdatedRows AS (
-    SELECT 
-        CT.SYS_CHANGE_VERSION,
-        CT.SYS_CHANGE_CREATION_VERSION,
-        CT.SYS_CHANGE_COLUMNS, 
-        CT.SYS_CHANGE_CONTEXT,
-        T.*
-    FROM 
-        CHANGETABLE(CHANGES TableName, 100) AS CT
-    JOIN 
-        TableName AS T
-    ON 
-        CT.PrimaryKeyColumn = T.PrimaryKeyColumn
-    WHERE
-        CT.SYS_CHANGE_OPERATION = 'U' -- Filter for updates only
-)
-SELECT 
-    UR.SYS_CHANGE_VERSION,
-    UR.PrimaryKeyColumn,
-    -- Add custom logic to interpret SYS_CHANGE_COLUMNS bitmap
-    -- Example for common columns (adjust column names as needed):
-    CASE WHEN CHANGE_TRACKING_IS_COLUMN_IN_MASK(COLUMNPROPERTY(OBJECT_ID('TableName'), 'Column1', 'ColumnId'), UR.SYS_CHANGE_COLUMNS) = 1 
-         THEN 'Changed' ELSE 'Unchanged' END AS Column1_Status,
-    CASE WHEN CHANGE_TRACKING_IS_COLUMN_IN_MASK(COLUMNPROPERTY(OBJECT_ID('TableName'), 'Column2', 'ColumnId'), UR.SYS_CHANGE_COLUMNS) = 1 
-         THEN 'Changed' ELSE 'Unchanged' END AS Column2_Status,
-    CASE WHEN CHANGE_TRACKING_IS_COLUMN_IN_MASK(COLUMNPROPERTY(OBJECT_ID('TableName'), 'Column3', 'ColumnId'), UR.SYS_CHANGE_COLUMNS) = 1 
-         THEN 'Changed' ELSE 'Unchanged' END AS Column3_Status,
-    -- Include the current values (after the update)
-    UR.Column1,
-    UR.Column2,
-    UR.Column3
-FROM 
-    UpdatedRows AS UR
-ORDER BY 
-    UR.SYS_CHANGE_VERSION;
-```
+We then call APIs such as WikiData, NewsAPI OpenCorporates, and OpenSanctions to gather additional information about the organizations.
+After that, we check if any individuals are Politically Exposed Person.
+This consolidated context along with the prompt is sent to the Gemini API to assess the risk. The LLM returns a risk and confidence score along with supporting evidence.
+Finally, we store the results in the knowledge base and the Neo4j database, and send a callback to FastAPI.
