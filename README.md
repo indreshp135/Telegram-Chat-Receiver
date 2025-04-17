@@ -1,3 +1,5 @@
+```sql
+-- Query to retrieve only UPDATE changes after CTV 100 with column change information
 WITH UpdatedRows AS (
     SELECT 
         CT.SYS_CHANGE_VERSION,
@@ -33,3 +35,4 @@ FROM
     UpdatedRows AS UR
 ORDER BY 
     UR.SYS_CHANGE_VERSION;
+```
