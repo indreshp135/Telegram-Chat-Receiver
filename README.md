@@ -116,7 +116,8 @@ module "wf_cloudfunctions2_factory" {
   #vpc_connector                   = "projects/${var.network_project_id}/locations/${var.project_id}/connectors/${var.vpc_connector}"
   #vpc_connector                   = "projects/wf-us-core-networking-hub-0ca8/locations/us-central1/connectors/core-con-gcp-usc1con"
   vpc_connector = "projects/wf-us-core-networking-hub-be54/locations/us-central1/connectors/core-con-gcp-usc1con"
-  
+}
+
   # Trigger the function:
   module "cf2_http_scheduler" {
     source  = "tfe-nonprod.wellsfargo.net/TFE-GCP/wf-scheduler-factory/google"
@@ -158,4 +159,5 @@ module "cr_service_agent" {
   project_id          = local.project_id
   roles               = local.cr_service_agent
 }
+
 ```
