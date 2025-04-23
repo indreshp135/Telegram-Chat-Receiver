@@ -19,13 +19,13 @@ def get_orgs_and_folders_metadata():
     orgClient = resourcemanager_v3.OrganizationsClient()
     try:
         request = resourcemanager_v3.SearchFoldersRequest()
-        response = folderClient.search_folders(request=request)
+        response =  folderClient.search_folders(request=request)
     except (GoogleAPIError, googleapiclient.errors.HttpError) as err:
         print(f'API Error in retrieving Folders : {err}')
         exit(0)
     try:
         request1 = resourcemanager_v3.SearchOrganizationsRequest()
-        response1 = orgClient.search_organizations(request=request1)
+        response1 =  orgClient.search_organizations(request=request1)
     except (GoogleAPIError, googleapiclient.errors.HttpError) as err:
         print(f'API Error in retrieving Organizations : {err}')
         exit(0)
@@ -129,15 +129,13 @@ def import_json_as_dictionary(filename):
         utf_16 = False
     except UnicodeDecodeError:
         utf_8 = False
-    
     if not utf_8:
         try:
-            codecs.open(filename, encoding="utf-16-le", 
+            codecs.open(filename, encoding="utf-16-le",
                         errors="strict").readline()
             utf_16 = True
         except UnicodeDecodeError:
             utf_16 = False
-    
     if utf_16:
         with open(filename, 'r', encoding='utf-16-le') as json_file_handler:
             data = json_file_handler.read()
@@ -163,8 +161,8 @@ def get_uid_from_email(sa_email, all_sas_dictionary):
             if current_email == sa_email:
                 uid = svc_account['additionalAttributes']['uniqueId']
                 break
-        else:
-            uid = "gcp_owned"
+    else:
+        uid = "gcp_owned"
     return uid
 
 def get_au_from_projectId(proj_metadata, project_id, mode):
@@ -188,8 +186,8 @@ def get_appId_from_projectId(proj_metadata, project_id, mode):
     try:
         for proj in proj_metadata:
             if (mode == "remote" and project_id in proj['project_id']) or (mode == "local" and project_id in proj['projectId']):
-                if 'appId' in proj['labels']:
-                    appId = proj['labels']['appId']
+                if 'appid' in proj['labels']:
+                    appId = proj['labels']['appid']
                     break
     except (GoogleAPIError, googleapiclient.errors.HttpError) as err:
         print(f"API Error : {err}")
@@ -223,7 +221,7 @@ def get_policy_for_identity(identity_info, proj_metadata, mode, iam_policy=None,
         elif 'asset_type' in iam_policy:
             rsc_type = iam_policy['asset_type'].split('/')[-1]
         rsc_name = iam_policy['resource'].split('/')[-1]
-        rsc = f"{rsc_type}_{rsc_name}"
+        rsc = f"{rsc_type}_({rsc_name})"
         role = binding['role'].replace('roles/', '')
         au = get_au_from_projectId(proj_metadata, identity_info['project_id'], mode)
         principal_policy[identity_info['email']] = {
@@ -266,7 +264,7 @@ def get_policy_for_identity(identity_info, proj_metadata, mode, iam_policy=None,
             rsc_type = policy['attached_resource_full_name'].split('/')[-2]
             rsc_name = policy['attached_resource_full_name'].split('/')[-1]
             role = policy['iam_binding']['role'].replace('roles/', '')
-            rsc = f"{rsc_type}_{rsc_name}"
+            rsc = f"{rsc_type}_({rsc_name})"
             if policy['identity_list']['group_edges']:
                 group_name = policy['identity_list']['group_edges'][0]['source_node'].replace(':', '_')
                 entitlement = f"{role}_{rsc}"
@@ -386,7 +384,7 @@ def act_file_251(dictionary, filename):
         with open(csv_file, "w") as csvfile:
             writer = csv.writer(csvfile, delimiter="|")
             writer.writerow(header)
-            for _s, sa_value in dictionary.items():
+            for _sa, sa_value in dictionary.items():
                 record_type = sa_value["RECORD_TYPE"]
                 unique_id = sa_value["UNIQUE_ID"]
                 sor = sa_value["SOR"]
@@ -407,7 +405,7 @@ def act_file_251(dictionary, filename):
         print("I/O error, can't write out CSV file")
         
 def act_file_252(dictionary, filename, all_folders_metadata):
-   csv_columns = [ "Entitlement", "UNIQUE_ID", "OWNING_APPL" ]
+   csv_columns = [ "Entitlement", "OWNING_APPL" ]
    header = ["RESOURCE_TYPE", "UNIQUE_ID", "SOR", "RESOURCE_LOCATION", "NAME", "STATUS", "PRIV_IND", "CERT_TYPE", "CERT_ENTITY", "DESCRIPTION", "OWNING_APPL"]
    csv_file = filename
    try:
@@ -427,8 +425,8 @@ def act_file_252(dictionary, filename, all_folders_metadata):
                Entitlement = [item for item in Entitlement if not 'nonprod' in item]
                for i in Entitlement:
                    owning_application = "GCP" #sa_value["OWNING_APPL"]
-                   unique_id = "_".join(i.split(":", 2)[1:2])
-                   resource_location = i.split(":", 2)[-1].replace("(","").replace(")","")
+                   unique_id = "_".join(i.split("_", 2)[:2])
+                   resource_location = i.split("_", 2)[-1].replace("(","").replace(")","")
                    resource_location = resource_location.split('@')[0].replace('@',"")
                    resource_location = get_resource_location(resource_location, i, all_folders_metadata)
                    name = i.split('@')[0].replace('@',"").replace("(","").replace(")","")
@@ -452,7 +450,7 @@ def act_file_253(dictionary, filename, all_folders_metadata):
            attr_name2 = ""
            attr_value2 = ""
            attr_control = ""
-           entitlement_status = "Y"
+           entitlement_status = "A"
            for _sa, sa_value in dictionary.items():
                Entitlement = sa_value["Entitlement"]
                Entitlement = [set(list(Entitlement))]
@@ -461,8 +459,8 @@ def act_file_253(dictionary, filename, all_folders_metadata):
                for i in Entitlement:
                    owning_application = sa_value["OWNING_APPL"]
                    unique_id = sa_value["UNIQUE_ID"]
-                   attr_value1 = "_".join(i.split(":", 2)[1:2]).replace('\'','').replace('\'','')
-                   location = i.split(":", 2)[-1].replace("(","").replace(")","")
+                   attr_value1 = "_".join(i.split("_", 2)[1:2]).replace('(\'','').replace('\')','')
+                   location = i.split("_", 2)[-1].replace("(","").replace(")","")
                    location = location.split('@')[0].replace('@',"")
                    location = get_resource_location(location, i, all_folders_metadata)
                    name = i.split('@')[0].replace('@',"").replace("(","").replace(")","")
@@ -471,32 +469,26 @@ def act_file_253(dictionary, filename, all_folders_metadata):
        print("I/O error, can't write out CSV file")
        
 def act_file_255(dictionary, filename):
-    csv_columns = []
-    header = ["DATE_STAMP", "OWNING_APPLICATION", "HASH_ALGORITHM", "FILE_FORMAT", "T251_HASH", "T251_ROWS", "T252_HASH", "T252_ROWS", "T253_HASH", "T253_ROWS", "T254_HASH", "T254_ROWS"]
-    file_format = "ASCII-CRLF"
+    csv_columns = [
+        "DATE_STAMP", "OWNING_APPLICATION", "HASH_ALGORITHM", "FILE_FORMAT",
+        "T251_ROWS", "T251_HASH", "T252_ROWS", "T252_HASH",
+        "T253_ROWS", "T253_HASH", "T254_ROWS", "T254_HASH"
+    ]
+    header = csv_columns
     csv_file = filename
     try:
-        with open(csv_file, 'w') as csvfile:
+        with open(csv_file, "w") as csvfile:
             writer = csv.writer(csvfile, delimiter=',')
             writer.writerow(header)
             timestamp = datetime.today().strftime('%Y/%m/%d %H:%M:%S')
             omnin_app = "GCP"
             hash_algorithm = "SHA-256"
+            file_format = "ASCII-CRLF"
 
             count = 1
-            t251_hash = count
             t251_rows = count
-            for sa_value in dictionary.items():
-                Entitlement = sa_value[1]['Entitlement']
-                Entitlement = [item for item in Entitlement if not 'sandbox' in item]
-                Entitlement = [item for item in Entitlement if not 'nonprod' in item]
-                for i in Entitlement:
-                    count += 1
-                t251_rows = count
+            t251_hash = count
 
-            count = 1
-            t252_hash = count
-            t252_rows = count
             for sa_value in dictionary.items():
                 Entitlement = sa_value[1]['Entitlement']
                 Entitlement = list(set(Entitlement))
@@ -504,88 +496,95 @@ def act_file_255(dictionary, filename):
                 Entitlement = [item for item in Entitlement if not 'nonprod' in item]
                 for i in Entitlement:
                     count += 1
-                t252_rows = count
+            t252_rows = count
+            t252_hash = count
 
             count = 1
-            t253_hash = count
-            t253_rows = count
             for sa_value in dictionary.items():
                 Entitlement = sa_value[1]['Entitlement']
+                Entitlement = list(set(Entitlement))
+                Entitlement = [item for item in Entitlement if not 'sandbox' in item]
+                Entitlement = [item for item in Entitlement if not 'nonprod' in item]
                 for i in Entitlement:
                     count += 1
-                t253_rows = count
+            t253_rows = count
+            t253_hash = count
 
-            t254_hash = count
             t254_rows = count
+            t254_hash = count
 
-            writer.writerow([timestamp, omnin_app, hash_algorithm, file_format, t251_hash, t251_rows, t252_hash, t252_rows, t253_hash, t253_rows, t254_hash, t254_rows])
-    except IOError:
-        print("I/O error: can't write out CSV file")
+            writer.writerow([timestamp, omnin_app, hash_algorithm, file_format,
+                            t251_rows, t251_hash, t252_rows, t252_hash,
+                            t253_rows, t253_hash, t254_rows, t254_hash])
+    except Exception as e:
+        print("Error: cannot write output CSV file")
 
-def ESARextract(dictionary, filename, all_ss_asr_dictionary):
-    header = ["Row Id", "Account Name", "AU", "Vendor Type", "Unique Object ID", "Tenant Type", "Folder Type",
-              "Project Name", "Credential Type", "Primary Use", "Password Expiration Interval", "Is Interactive",
-              "Privileged Account", "Business Justification", "Account Certification", "Application ID", "Security Plan",
+def eSARextract(dictionary, filename, all_sas_esar_dictionary):
+    header = ["ROW ID", "Account Name", "AU", "Vendor Type", "Unique Object ID", "Tenant Type", "Folder Type", "Project Name", "Credential Type", "Primary Use", 
+              "Password Expiration Interval", "Is Interactive", "Privileged Account", "Business Justification", "Account Certification", "Application ID", "Security Plan", 
               "Security Plan Exception"]
     csv_file = filename
+
     try:
         with open(csv_file, 'w') as csvfile:
-            writer = csv.writer(csvfile, delimiter=',')
+            writer = csv.writer(csvfile, delimiter='|')
             writer.writerow(header)
             count = 0
-            for sa_value in dictionary.items():
-                print(sa_value[1]['AU'])
-                au = sa_value[1]['AU']
-                sa_desc = get_description_from_email(sa_value['EMAIL'], all_ss_asr_dictionary)
-                match = re.search("AU-(.*?)", sa_desc)
+            for sa, sa_value in dictionary.items():
+                name = sa_value['EMAIL']
+                au = sa_value['AU']
+                sa_desc = get_description_from_email(sa_value['EMAIL'], all_sas_esar_dictionary)
+                match = re.search(r"AU:(.*?)\s", sa_desc)
                 if match:
-                    au = match.group(1).split("/")[0]
+                    if ':' in match.group(1):
+                        au = match.group(1).split(':')[0]
+                    else:
+                        au = match.group(1)
                 else:
                     au = sa_value['AU']
 
                 vendor_type = "Google Cloud Platform"
-                unique_id = sa_value['UNIQUE_ID']
-                tenant_type = sa_value['TENANT_LOCATION']
+                unique_id = sa_value['UNIQ_ID']
+                tenant_type = sa_value['ID_LOCATION']
                 project_name = sa_value['PROJECT_ID']
-                if project_name == "seed-491f":
-                    folder_type = "Bootstrap"
-                elif project_name == "us-core-thirdpartytsaas-779a":
+
+                if project_name == 'wf-seed-491':
+                    folder_type = "BOOTSTRAP"
+                elif project_name == 'wf-us-core-thirdpartyasaas-779a':
+                    folder_type = "core"
+                elif project_name == 'developer':
                     folder_type = "Local Account"
-                    stf = sa_value['FOLDER_TYPE']
-                    if stf.isdigit():
-                        credential_type = "Systems Service Accounts"
-                    else:
-                        credential_type = "User Managed Service Accounts"
+                else:
+                    folder_type = sa_value['FOLDER_TYPE']
+
+                if str(name)[:1].isdigit():
+                    credential_type = "Systems Service Accounts"
                 else:
                     credential_type = "User Managed Service Accounts"
 
-                # Extracting primary use from owning application
-                primary_use = ""
-                owning_app = sa_value['OWNING_APP']
-                if "saas" in owning_app.lower():
+                saas_list = ['cema', 'itmp', 'tbpry', 'dmsto', 'prmce']
+                if sa_value['OWNING_APPL'] in saas_list:
                     primary_use = "Software as a Service (SaaS)"
                 else:
                     primary_use = "Application"
 
                 password_expiration_interval = "Non-Expiring"
                 is_interactive = "FALSE"
-                privileged_account = "FALSE"
-                business_justification = "Used for provisioning folders/projects in GCP"
-                account_certification = "ACR"
-                application_id = sa_value['OWNING_APP']
+                privileged_account = "TRUE"
+                business_justification = "used for provisioning folders/projects in GCP"
+                account_certification = "ACT"
+                application_id = sa_value['OWNING_APPL']
                 security_plan = ""
                 security_plan_exception = ""
 
-                if project_name == "ssappsvc" and project_name != "appsopt":
-                    row_id = count
+                if(project_name != "wellsfargo" and project_name != "appsopt"):
                     count += 1
-                    writer.writerow([row_id, sa_value['NAME'], au, vendor_type, unique_id, tenant_type,
-                                     folder_type, project_name, credential_type, primary_use,
-                                     password_expiration_interval, is_interactive, privileged_account,
-                                     business_justification, account_certification, application_id,
+                    row_id = count
+                    writer.writerow([row_id, name, au, vendor_type, unique_id, tenant_type, folder_type, project_name, credential_type, primary_use,
+                                     password_expiration_interval, is_interactive, privileged_account, business_justification, account_certification, application_id,
                                      security_plan, security_plan_exception])
     except IOError:
-        print("I/O error, can't write out saExtract CSV file")
+        print("I/O error, can't write out eSAExtract CSV file")
 
 def write_roles_to_csv(filename, all_roles_metadata):
     header = ["Name", "Title", "Description"]
@@ -601,12 +600,12 @@ def write_roles_to_csv(filename, all_roles_metadata):
                 if 'title' in role:
                     title = role['title']
                 else:
-                    print(f"Role title not available for {name}. Hence setting role name as title")
+                    print(f"Role title not available for role {name}. Hence setting role name as title")
                     title = name
                 if 'description' in role:
                     description = role['description']
                 else:
-                    print(f"Role description not available for {name}. Hence setting role name as Description")
+                    print(f"Role description not available for role {name}. Hence setting role name as Description")
                     description = name
                 writer.writerow([name, title, description])
 
@@ -617,18 +616,18 @@ def write_roles_to_csv(filename, all_roles_metadata):
 
 def get_resource_location(resource_location, i, folder_metadata):
     location = resource_location
-    res_location = "/".join(i.split("/")[1:]).rsplit("/", 2)[-2:]
+    res_location = "_".join(i.split("/")[-1]).rsplit("_", 2)[-2:]
     if "Project_" in res_location:
-        location = get_foldername_from_id(folder_metadata, folder_metadata)
+        location = res_location.replace("Project_(", "").replace(")", "")
     elif "folders" in res_location:
         folders = res_location.replace("Project(", "").replace(")", "").replace("folders_", "folders/")
-        location = get_foldername_from_id(folder_metadata, folders)
+        location = get_foldername_from_id(folder_metadata, folders, location)
     elif "Folder_" in res_location:
         folders = res_location.replace("Project(", "").replace(")", "").replace("Folder_", "folders/")
-        location = get_foldername_from_id(folder_metadata, folders)
+        location = get_foldername_from_id(folder_metadata, folders, location)
     elif "organizations" in res_location:
         folders = res_location.replace("Project(", "").replace(")", "").replace("organizations_", "organizations/")
-        location = get_foldername_from_id(folder_metadata, folders)
+        location = get_foldername_from_id(folder_metadata, folders, location)
     elif "Organization_" in res_location:
         folders = res_location.replace("Project(", "").replace(")", "").replace("Organization_", "organizations/")
         location = get_foldername_from_id(folder_metadata, folders)
@@ -660,8 +659,7 @@ def write_dictionary_to_csv(dictionary, filename, all_folders_metadata, all_sas_
     elif act_file_no == "file-255":
         act_file_255(dictionary, filename)
     else:
-        ESARextract(dictionary, filename, all_sas_esar_dictionary)
-
+        eSARextract(dictionary, filename, all_sas_esar_dictionary)
 
 def cf_entry_event(event):
     print("Triggering Initiated")
@@ -682,13 +680,13 @@ def cf_entry_http(request):
         print("Remote mode failed")
         exit(0)
 
-def run_local(iam_json_filename, sas_json_filename, esar_json_filename, proj_json_filename,
+def run_local(iam_json_filename, sas_json_filename, esar_sas_json_filename, proj_json_filename,
               roles_json_filename, folders_json_filename, csv_filename, gcs_bucket):
     print('Script running in local mode')
     
     all_iam_policies = import_json_as_dictionary(iam_json_filename)
     all_svc_accts = import_json_as_dictionary(sas_json_filename)
-    all_svc_accts_esar = import_json_as_dictionary(esar_json_filename)
+    all_svc_accts_esar = import_json_as_dictionary(esar_sas_json_filename)
     all_proj_metadata = import_json_as_dictionary(proj_json_filename)
     all_roles_metadata = import_json_as_dictionary(roles_json_filename)
     all_folders_metadata = import_json_as_dictionary(folders_json_filename)
@@ -712,7 +710,7 @@ def run_local(iam_json_filename, sas_json_filename, esar_json_filename, proj_jso
         else:
             csv_filename = "cf2out-" + act_file_no + ".csv"
             write_dictionary_to_csv(merged_iam_sa_dictionary, csv_filename, all_folders_metadata)
-            print(f"Wrote results to {csv_filename}")
+        print(f"Wrote results to {csv_filename}")
 
     if gcs_bucket:
         upload_file_gcp_bucket(gcs_bucket, csv_filename, csv_filename)
@@ -721,7 +719,7 @@ def run_local(iam_json_filename, sas_json_filename, esar_json_filename, proj_jso
 def run_remote():
     print("Script running in remote mode")
     gcp_org_id = "796508071153"
-    gcs_bucket = "core-iam-gcs-gcp-0222331-01-cf2ext"
+    gcs_bucket = "core-iam-gcs-gcp-0022331-01-cf2ext"
 
     all_iam_policies = get_all_iam_policies(gcp_org_id)
     print("Print All IAM Policies:")
@@ -745,25 +743,27 @@ def run_remote():
 
     merged_iam_sa_dictionary = parse_assets_output(all_iam_policies, 
                                                    all_svc_accts, 
-                                                   all_proj_metadata, 
+                                                   all_proj_metadata,
+                                                   "remote", 
                                                    gcp_org_id)
 
     merged_iam_sa_dictionary_esar = parse_assets_output(all_iam_policies, 
                                                         all_svc_accts, 
                                                         all_proj_metadata, 
                                                         all_svc_accts_esar, 
+                                                        "remote",
                                                         gcp_org_id)
 
-    file_no = ["251", "252", "253", "255", "esarExtract"]
+    file_no = ["251", "252", "253", "255", "eSARExtract"]
     for num in file_no:
         global act_file_no
-        act_file_no = "file_" + num
-        if num == "esarExtract":
+        act_file_no = "file-" + num
+        if num == "eSARextract":
             csv_filename = f"{num}.csv"
             csv_file_full_path = f"/tmp/{csv_filename}"
             write_dictionary_to_csv(merged_iam_sa_dictionary_esar, csv_file_full_path, all_folders_metadata, all_svc_accts_esar)
         else:
-            csv_filename = f"C2out_{num}.csv"
+            csv_filename = f"cf2out_{act_file_no}.csv"
             csv_file_full_path = f"/tmp/{csv_filename}"
             write_dictionary_to_csv(merged_iam_sa_dictionary, csv_file_full_path, all_folders_metadata)
 
@@ -826,4 +826,5 @@ if __name__ == "__main__":
             GCS_BUCKET = ""
 
         run_local(IAM_JSON_FILENAME, SAS_JSON_FILENAME, ESAR_SAS_JSON_FILENAME, PROJ_JSON_FILENAME, ROLE_JSON_FILENAME, FOLDERS_JSON_FILENAME, CSV_FILENAME, GCS_BUCKET)
+
 ```
