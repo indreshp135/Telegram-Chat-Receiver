@@ -67,6 +67,8 @@ ci_environment             = local.ci_environment
   ]
 }
 
+
+
 #Create HTTP Trigerred function
 module "wf_cloudfunctions2_factory" {
   source = "tfe-nonprod.wellsfargo.net/TFE-GCP-shared/wf-cloud_functions_gen2-factory/google"
@@ -80,14 +82,14 @@ module "wf_cloudfunctions2_factory" {
   
   application_classification = local.application_classification
   ci_environment             = local.ci_environment
-  instance_discriminator     = "cf2"
+  instance_discriminator     = "cfg2"
   
   # module specific variables
   region      = "us-central1"
   description = "Create reports and a service account extract file"
   project_id  = local.project_id
   
-  GCR_parameters = {
+  GAR_parameters = {
     cmek_key          = module.kms_bucket.key_names_to_key_id_map[local.bucket_key]
     docker_repository = null
     autocreate        = true
@@ -111,9 +113,9 @@ module "wf_cloudfunctions2_factory" {
   available_memory_mb             = "2048Mi"
   cf_runner_service_account_email = "sa-falcon-account@wf-us-core-iam-d53d.iam.gserviceaccount.com"
   timeout_in_seconds              = 3600
-  #vpc_connector                  = "projects/${var.network_project_id}/locations/${var.project_id}/connectors/${var.vpc_connector}"
+  #vpc_connector                   = "projects/${var.network_project_id}/locations/${var.project_id}/connectors/${var.vpc_connector}"
   #vpc_connector                   = "projects/wf-us-core-networking-hub-0ca8/locations/us-central1/connectors/core-con-gcp-usc1con"
-  vpc_connector                   = "projects/wf-us-core-networking-hub-be54/locations/us-central1/connectors/core-con-gcp-usc1con"
+  vpc_connector = "projects/wf-us-core-networking-hub-be54/locations/us-central1/connectors/core-con-gcp-usc1con"
   
   # Trigger the function:
   module "cf2_http_scheduler" {
@@ -133,16 +135,16 @@ module "wf_cloudfunctions2_factory" {
 ############################
 ## Google variables
 ############################
-    project             = local.project_id
-    region              = var.region
-    schedule            = var.schedule
-    time_zone           = local.time_zone
-    description         = "Trigger iam-sa-extract cloud function"
+    project            = local.project_id
+    region             = var.region
+    schedule           = var.schedule
+    time_zone          = local.time_zone
+    description        = "Trigger iam-sa-extract cloud function"
     #message_to_publish = "Trigger Cloud Function"   # 3.0.0 version not had message_to_publish
-    uri                 = module.wf_cloudfunctions2_factory.https_trigger_url
-    http_method         = "POST"
-    retry_count         = 1
-    attempt_deadline    = "1800s"
+    uri                = module.wf_cloudfunctions2_factory.https_trigger_url
+    http_method        = "POST"
+    retry_count        = 1
+    attempt_deadline   = "1800s"
     oidc_service_account_email = "sa-falcon-account@wf-us-core-iam-d53d.iam.gserviceaccount.com"
 }
 
@@ -150,10 +152,10 @@ module "cr_service_agent" {
   source  = "localterraform.com/TFE-GCP-shared/wf-iam-factory/google//modules/grant-member-project-role"
   version = "~> 3.1.2"
   
-  conditions            = []
-  member                = "service-${local.project_number}@serverless-robot-prod.iam.gserviceaccount.com"
-  member_account_type   = "serviceAccount"
-  project_id            = local.project_id
-  roles                 = local.cr_service_agent
+  conditions          = []
+  member              = "service-${local.project_number}@serverless-robot-prod.iam.gserviceaccount.com"
+  member_account_type = "serviceAccount"
+  project_id          = local.project_id
+  roles               = local.cr_service_agent
 }
 ```
