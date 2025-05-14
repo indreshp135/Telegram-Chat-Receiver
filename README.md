@@ -1,258 +1,317 @@
-```c#
-using Google.Api.Gax.ResourceNames;
-using Google.Apis.Auth.OAuth2;
-using Google.Cloud.Asset.V1;
-using Google.Cloud.Iam.Admin.V1;
-using Google.Cloud.Iam.V1;
-using Google.Cloud.ResourceManager.V1;
-using Newtonsoft.Json;
+```C#
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
+using Google.Api.Gax;
+using Google.Api.Gax.ResourceNames;
+using Google.Cloud.Asset.V1;
+using Google.Cloud.Iam.Admin.V1;
+using Google.Protobuf.WellKnownTypes;
 
-namespace GoogleCloudAssetIamComparison
+namespace ServiceAccountsComparison
 {
     class Program
     {
         static async Task Main(string[] args)
         {
+            // Get credentials from environment variable
+            Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", 
+                Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS"));
+
+            // Get service accounts using both methods and compare results
+            var assetServiceAccounts = await GetServiceAccountsUsingAssetClient();
+            Console.WriteLine($"Found {assetServiceAccounts.Count} service accounts using Asset API");
+            
+            var iamServiceAccounts = await GetServiceAccountsUsingIAMClient();
+            Console.WriteLine($"Found {iamServiceAccounts.Count} service accounts using IAM API");
+            
+            // Compare results to find what's missing in IAM response
+            CompareServiceAccounts(assetServiceAccounts, iamServiceAccounts);
+        }
+
+        static async Task<List<Dictionary<string, object>>> GetServiceAccountsUsingAssetClient()
+        {
+            Console.WriteLine("Getting service accounts using Asset API...");
+            var serviceAccounts = new List<Dictionary<string, object>>();
+            
             try
             {
-                // Get credentials from environment variables
-                string credentialPath = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
-                if (string.IsNullOrEmpty(credentialPath))
+                // Create Asset service client
+                var assetClient = await AssetServiceClient.CreateAsync();
+                
+                // First get all projects using Asset API
+                var projectsResponse = await GetAllProjectsUsingAssetClient(assetClient);
+                
+                // For each project, search for service accounts
+                foreach (var project in projectsResponse)
                 {
-                    Console.WriteLine("Please set the GOOGLE_APPLICATION_CREDENTIALS environment variable.");
-                    return;
+                    if (project.TryGetValue("name", out var projectNameObj) && 
+                        projectNameObj is string projectName)
+                    {
+                        // Extract project ID from project name (format: "projects/{projectId}")
+                        string projectId = projectName.Replace("projects/", "");
+                        
+                        Console.WriteLine($"Searching for service accounts in project: {projectId}");
+                        
+                        // Search for service accounts in this project
+                        var projectServiceAccounts = await SearchServiceAccountsInProject(assetClient, projectId);
+                        serviceAccounts.AddRange(projectServiceAccounts);
+                    }
                 }
-
-                GoogleCredential credential = GoogleCredential.FromFile(credentialPath)
-                    .CreateScoped(
-                        AssetServiceClient.DefaultScopes,
-                        IAMClient.DefaultScopes,
-                        ProjectsClientImpl.DefaultScopes
-                    );
-
-                // Get project ID
-                string projectId = Environment.GetEnvironmentVariable("GOOGLE_CLOUD_PROJECT");
-                if (string.IsNullOrEmpty(projectId))
-                {
-                    Console.WriteLine("Please set the GOOGLE_CLOUD_PROJECT environment variable.");
-                    return;
-                }
-
-                // Get all projects and service accounts using Asset API
-                var assetResult = await GetProjectsAndServiceAccountsUsingAssetClient(credential, projectId);
-
-                // Save Asset API results to file
-                string assetJsonFilePath = "asset_api_results.json";
-                File.WriteAllText(assetJsonFilePath, JsonConvert.SerializeObject(assetResult, Formatting.Indented));
-                Console.WriteLine($"Asset API results saved to {assetJsonFilePath}");
-
-                // Get all projects and service accounts using IAM API
-                var iamResult = await GetProjectsAndServiceAccountsUsingIamClient(credential, projectId);
-
-                // Save IAM API results to file
-                string iamJsonFilePath = "iam_api_results.json";
-                File.WriteAllText(iamJsonFilePath, JsonConvert.SerializeObject(iamResult, Formatting.Indented));
-                Console.WriteLine($"IAM API results saved to {iamJsonFilePath}");
-
-                // Compare results and identify missing items
-                await CompareResults(assetResult, iamResult);
+                
+                // Save results to JSON file
+                string assetOutputPath = "asset_service_accounts.json";
+                File.WriteAllText(assetOutputPath, JsonSerializer.Serialize(serviceAccounts, 
+                    new JsonSerializerOptions { WriteIndented = true }));
+                Console.WriteLine($"Asset API results saved to {assetOutputPath}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"An error occurred: {ex.Message}");
+                Console.WriteLine($"Error getting service accounts with Asset API: {ex.Message}");
                 Console.WriteLine(ex.StackTrace);
             }
-        }
-
-        static async Task<AssetApiResult> GetProjectsAndServiceAccountsUsingAssetClient(GoogleCredential credential, string projectId)
-        {
-            Console.WriteLine("Getting projects and service accounts using Asset API...");
-
-            AssetServiceClientBuilder assetClientBuilder = new AssetServiceClientBuilder
-            {
-                Credential = credential
-            };
-            AssetServiceClient assetClient = await assetClientBuilder.BuildAsync();
-
-            // Get all projects
-            var projectsResponse = await assetClient.ListAssetsAsync(
-                new ListAssetsRequest
-                {
-                    Parent = $"organizations/{projectId}",
-                    ContentType = ContentType.Resource,
-                    AssetTypes = { "cloudresourcemanager.googleapis.com/Project" }
-                });
-
-            var projects = projectsResponse.Assets.ToList();
-            Console.WriteLine($"Found {projects.Count} projects using Asset API");
-
-            // Get all service accounts
-            var serviceAccountsResponse = await assetClient.ListAssetsAsync(
-                new ListAssetsRequest
-                {
-                    Parent = $"organizations/{projectId}",
-                    ContentType = ContentType.Resource,
-                    AssetTypes = { "iam.googleapis.com/ServiceAccount" }
-                });
-
-            var serviceAccounts = serviceAccountsResponse.Assets.ToList();
-            Console.WriteLine($"Found {serviceAccounts.Count} service accounts using Asset API");
-
-            return new AssetApiResult
-            {
-                Projects = projects,
-                ServiceAccounts = serviceAccounts
-            };
-        }
-
-        static async Task<IamApiResult> GetProjectsAndServiceAccountsUsingIamClient(GoogleCredential credential, string projectId)
-        {
-            Console.WriteLine("Getting projects and service accounts using IAM API...");
-
-            // Initialize ProjectsClient to get projects
-            ProjectsClientBuilder projectsClientBuilder = new ProjectsClientBuilder
-            {
-                Credential = credential
-            };
-            ProjectsClient projectsClient = await projectsClientBuilder.BuildAsync();
-
-            // Get all projects
-            var projectsResponse = await projectsClient.ListProjectsAsync(
-                new ListProjectsRequest());
-
-            var projects = projectsResponse.ToList();
-            Console.WriteLine($"Found {projects.Count} projects using Projects API");
-
-            // Initialize IAM client to get service accounts
-            IAMClientBuilder iamClientBuilder = new IAMClientBuilder
-            {
-                Credential = credential
-            };
-            IAMClient iamClient = await iamClientBuilder.BuildAsync();
-
-            // We need to get service accounts for each project
-            List<ServiceAccount> allServiceAccounts = new List<ServiceAccount>();
             
-            foreach (var project in projects)
+            return serviceAccounts;
+        }
+        
+        static async Task<List<Dictionary<string, object>>> GetAllProjectsUsingAssetClient(AssetServiceClient assetClient)
+        {
+            Console.WriteLine("Getting all projects using Asset API...");
+            var projects = new List<Dictionary<string, object>>();
+            
+            try
             {
-                try
+                // Create search request to find projects
+                var request = new SearchAllResourcesRequest
                 {
-                    var serviceAccountsResponse = await iamClient.ListServiceAccountsAsync(
-                        new ListServiceAccountsRequest
-                        {
-                            Name = $"projects/{project.ProjectId}"
-                        });
-
-                    var projectServiceAccounts = serviceAccountsResponse.ToList();
-                    allServiceAccounts.AddRange(projectServiceAccounts);
-                    Console.WriteLine($"Found {projectServiceAccounts.Count} service accounts for project {project.ProjectId}");
+                    Scope = "organizations/",  // You might need to specify your organization ID
+                    AssetTypes = { "cloudresourcemanager.googleapis.com/Project" },
+                    PageSize = 500,
+                };
+                
+                // Execute search and process paginated results
+                PagedAsyncEnumerable<SearchAllResourcesResponse, ResourceSearchResult> projectsResponseStream = 
+                    assetClient.SearchAllResourcesAsync(request);
+                
+                await foreach (var project in projectsResponseStream)
+                {
+                    // Convert protobuf message to dictionary for JSON serialization
+                    var projectDict = ConvertProtobufToDictionary(project);
+                    projects.Add(projectDict);
                 }
-                catch (Exception ex)
+                
+                // Save projects to JSON file for reference
+                string projectsOutputPath = "asset_projects.json";
+                File.WriteAllText(projectsOutputPath, JsonSerializer.Serialize(projects, 
+                    new JsonSerializerOptions { WriteIndented = true }));
+                Console.WriteLine($"Projects list saved to {projectsOutputPath}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting projects with Asset API: {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
+            }
+            
+            return projects;
+        }
+        
+        static async Task<List<Dictionary<string, object>>> SearchServiceAccountsInProject(
+            AssetServiceClient assetClient, string projectId)
+        {
+            var serviceAccounts = new List<Dictionary<string, object>>();
+            
+            try
+            {
+                // Create search request for service accounts in the project
+                var request = new SearchAllResourcesRequest
                 {
-                    Console.WriteLine($"Error getting service accounts for project {project.ProjectId}: {ex.Message}");
+                    Scope = $"projects/{projectId}",
+                    AssetTypes = { "iam.googleapis.com/ServiceAccount" },
+                    PageSize = 500,
+                };
+                
+                // Execute search and process paginated results
+                PagedAsyncEnumerable<SearchAllResourcesResponse, ResourceSearchResult> responseStream = 
+                    assetClient.SearchAllResourcesAsync(request);
+                
+                await foreach (var serviceAccount in responseStream)
+                {
+                    // Convert protobuf message to dictionary for JSON serialization
+                    var saDict = ConvertProtobufToDictionary(serviceAccount);
+                    serviceAccounts.Add(saDict);
                 }
             }
-
-            Console.WriteLine($"Found {allServiceAccounts.Count} total service accounts using IAM API");
-
-            return new IamApiResult
+            catch (Exception ex)
             {
-                Projects = projects,
-                ServiceAccounts = allServiceAccounts
-            };
+                Console.WriteLine($"Error searching service accounts in project {projectId}: {ex.Message}");
+            }
+            
+            return serviceAccounts;
         }
-
-        static async Task CompareResults(AssetApiResult assetResult, IamApiResult iamResult)
+        
+        static async Task<List<Dictionary<string, object>>> GetServiceAccountsUsingIAMClient()
         {
-            Console.WriteLine("Comparing results from Asset API and IAM API...");
-
-            // Compare projects
-            var assetProjectIds = assetResult.Projects.Select(p => p.Resource.Data.Fields["projectId"].StringValue).ToHashSet();
-            var iamProjectIds = iamResult.Projects.Select(p => p.ProjectId).ToHashSet();
-
-            var missingProjectsInIam = assetProjectIds.Except(iamProjectIds).ToList();
-            var additionalProjectsInIam = iamProjectIds.Except(assetProjectIds).ToList();
-
-            // Compare service accounts
-            var assetServiceAccountEmails = assetResult.ServiceAccounts.Select(sa => 
-                sa.Resource.Data.Fields["email"].StringValue).ToHashSet();
-            var iamServiceAccountEmails = iamResult.ServiceAccounts.Select(sa => sa.Email).ToHashSet();
-
-            var missingServiceAccountsInIam = assetServiceAccountEmails.Except(iamServiceAccountEmails).ToList();
-            var additionalServiceAccountsInIam = iamServiceAccountEmails.Except(assetServiceAccountEmails).ToList();
-
-            // Create comparison result object
-            var comparisonResult = new ComparisonResult
+            Console.WriteLine("Getting service accounts using IAM API...");
+            var serviceAccounts = new List<Dictionary<string, object>>();
+            
+            try
             {
-                ProjectsCount = new CountComparison
+                // Create IAM service client
+                var iamClient = await IAMClient.CreateAsync();
+                
+                // First get all projects using Asset API
+                var assetClient = await AssetServiceClient.CreateAsync();
+                var projectsResponse = await GetAllProjectsUsingAssetClient(assetClient);
+                
+                // For each project, list service accounts using IAM API
+                foreach (var project in projectsResponse)
                 {
-                    AssetApiCount = assetResult.Projects.Count,
-                    IamApiCount = iamResult.Projects.Count,
-                    Difference = assetResult.Projects.Count - iamResult.Projects.Count
-                },
-                ServiceAccountsCount = new CountComparison
-                {
-                    AssetApiCount = assetResult.ServiceAccounts.Count,
-                    IamApiCount = iamResult.ServiceAccounts.Count,
-                    Difference = assetResult.ServiceAccounts.Count - iamResult.ServiceAccounts.Count
-                },
-                MissingProjectsInIam = missingProjectsInIam,
-                AdditionalProjectsInIam = additionalProjectsInIam,
-                MissingServiceAccountsInIam = missingServiceAccountsInIam,
-                AdditionalServiceAccountsInIam = additionalServiceAccountsInIam
-            };
-
-            // Save comparison results to file
-            string comparisonFilePath = "comparison_results.json";
-            File.WriteAllText(comparisonFilePath, JsonConvert.SerializeObject(comparisonResult, Formatting.Indented));
-            Console.WriteLine($"Comparison results saved to {comparisonFilePath}");
-
-            // Print summary of comparison results
-            Console.WriteLine("\nComparison Summary:");
-            Console.WriteLine($"Projects in Asset API: {assetResult.Projects.Count}");
-            Console.WriteLine($"Projects in IAM API: {iamResult.Projects.Count}");
-            Console.WriteLine($"Missing projects in IAM API: {missingProjectsInIam.Count}");
-            Console.WriteLine($"Additional projects in IAM API: {additionalProjectsInIam.Count}");
-            Console.WriteLine($"Service accounts in Asset API: {assetResult.ServiceAccounts.Count}");
-            Console.WriteLine($"Service accounts in IAM API: {iamResult.ServiceAccounts.Count}");
-            Console.WriteLine($"Missing service accounts in IAM API: {missingServiceAccountsInIam.Count}");
-            Console.WriteLine($"Additional service accounts in IAM API: {additionalServiceAccountsInIam.Count}");
+                    if (project.TryGetValue("name", out var projectNameObj) && 
+                        projectNameObj is string projectName)
+                    {
+                        // Extract project ID from project name (format: "projects/{projectId}")
+                        string projectId = projectName.Replace("projects/", "");
+                        
+                        Console.WriteLine($"Listing service accounts in project: {projectId}");
+                        
+                        // List service accounts for this project using IAM API
+                        var projectServiceAccounts = await ListServiceAccountsInProject(iamClient, projectId);
+                        serviceAccounts.AddRange(projectServiceAccounts);
+                    }
+                }
+                
+                // Save results to JSON file
+                string iamOutputPath = "iam_service_accounts.json";
+                File.WriteAllText(iamOutputPath, JsonSerializer.Serialize(serviceAccounts, 
+                    new JsonSerializerOptions { WriteIndented = true }));
+                Console.WriteLine($"IAM API results saved to {iamOutputPath}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting service accounts with IAM API: {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
+            }
+            
+            return serviceAccounts;
         }
-    }
-
-    // Data classes to store results
-    public class AssetApiResult
-    {
-        public List<Google.Cloud.Asset.V1.Asset> Projects { get; set; } = new List<Google.Cloud.Asset.V1.Asset>();
-        public List<Google.Cloud.Asset.V1.Asset> ServiceAccounts { get; set; } = new List<Google.Cloud.Asset.V1.Asset>();
-    }
-
-    public class IamApiResult
-    {
-        public List<Project> Projects { get; set; } = new List<Project>();
-        public List<ServiceAccount> ServiceAccounts { get; set; } = new List<ServiceAccount>();
-    }
-
-    public class CountComparison
-    {
-        public int AssetApiCount { get; set; }
-        public int IamApiCount { get; set; }
-        public int Difference { get; set; }
-    }
-
-    public class ComparisonResult
-    {
-        public CountComparison ProjectsCount { get; set; }
-        public CountComparison ServiceAccountsCount { get; set; }
-        public List<string> MissingProjectsInIam { get; set; } = new List<string>();
-        public List<string> AdditionalProjectsInIam { get; set; } = new List<string>();
-        public List<string> MissingServiceAccountsInIam { get; set; } = new List<string>();
-        public List<string> AdditionalServiceAccountsInIam { get; set; } = new List<string>();
+        
+        static async Task<List<Dictionary<string, object>>> ListServiceAccountsInProject(
+            IAMClient iamClient, string projectId)
+        {
+            var serviceAccounts = new List<Dictionary<string, object>>();
+            
+            try
+            {
+                // Create request to list service accounts in the project
+                var request = new ListServiceAccountsRequest
+                {
+                    Name = $"projects/{projectId}",
+                };
+                
+                // Execute list and process paginated results
+                PagedAsyncEnumerable<ListServiceAccountsResponse, ServiceAccount> responseStream = 
+                    iamClient.ListServiceAccountsAsync(request);
+                
+                await foreach (var serviceAccount in responseStream)
+                {
+                    // Convert protobuf message to dictionary for JSON serialization
+                    var saDict = ConvertProtobufToDictionary(serviceAccount);
+                    serviceAccounts.Add(saDict);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error listing service accounts in project {projectId}: {ex.Message}");
+            }
+            
+            return serviceAccounts;
+        }
+        
+        static Dictionary<string, object> ConvertProtobufToDictionary(Google.Protobuf.IMessage message)
+        {
+            // Convert protobuf message to JSON string
+            string jsonString = Google.Protobuf.JsonFormatter.Default.Format(message);
+            
+            // Deserialize JSON string to dictionary
+            return JsonSerializer.Deserialize<Dictionary<string, object>>(jsonString);
+        }
+        
+        static void CompareServiceAccounts(
+            List<Dictionary<string, object>> assetServiceAccounts, 
+            List<Dictionary<string, object>> iamServiceAccounts)
+        {
+            Console.WriteLine("Comparing service accounts from both APIs...");
+            
+            // Extract service account emails for easier comparison
+            var assetEmails = new HashSet<string>();
+            var iamEmails = new HashSet<string>();
+            
+            foreach (var sa in assetServiceAccounts)
+            {
+                if (sa.TryGetValue("name", out var nameObj) && nameObj is string name)
+                {
+                    assetEmails.Add(name);
+                }
+                if (sa.TryGetValue("email", out var emailObj) && emailObj is string email)
+                {
+                    assetEmails.Add(email);
+                }
+            }
+            
+            foreach (var sa in iamServiceAccounts)
+            {
+                if (sa.TryGetValue("name", out var nameObj) && nameObj is string name)
+                {
+                    iamEmails.Add(name);
+                }
+                if (sa.TryGetValue("email", out var emailObj) && emailObj is string email)
+                {
+                    iamEmails.Add(email);
+                }
+            }
+            
+            // Find service accounts in Asset API but not in IAM API
+            var missingInIAM = assetEmails.Except(iamEmails).ToList();
+            
+            // Create result object
+            var comparisonResult = new Dictionary<string, object>
+            {
+                { "totalAssetServiceAccounts", assetServiceAccounts.Count },
+                { "totalIAMServiceAccounts", iamServiceAccounts.Count },
+                { "missingInIAM", missingInIAM },
+                { "missingServiceAccountDetails", new List<Dictionary<string, object>>() }
+            };
+            
+            // Add details of missing service accounts
+            var missingDetails = (List<Dictionary<string, object>>)comparisonResult["missingServiceAccountDetails"];
+            foreach (var sa in assetServiceAccounts)
+            {
+                if (sa.TryGetValue("name", out var nameObj) && nameObj is string name &&
+                    missingInIAM.Contains(name))
+                {
+                    missingDetails.Add(sa);
+                }
+                else if (sa.TryGetValue("email", out var emailObj) && emailObj is string email &&
+                    missingInIAM.Contains(email))
+                {
+                    missingDetails.Add(sa);
+                }
+            }
+            
+            // Save comparison results to JSON file
+            string comparisonOutputPath = "service_accounts_comparison.json";
+            File.WriteAllText(comparisonOutputPath, JsonSerializer.Serialize(comparisonResult, 
+                new JsonSerializerOptions { WriteIndented = true }));
+            Console.WriteLine($"Comparison results saved to {comparisonOutputPath}");
+            
+            // Print summary
+            Console.WriteLine($"Total service accounts found with Asset API: {assetServiceAccounts.Count}");
+            Console.WriteLine($"Total service accounts found with IAM API: {iamServiceAccounts.Count}");
+            Console.WriteLine($"Service accounts missing in IAM API: {missingInIAM.Count}");
+        }
     }
 }
 ```
