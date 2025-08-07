@@ -3,69 +3,79 @@ using Google.Apis.Auth.OAuth2;
 using Google.Cloud.ResourceManager.V3;
 using Google.Cloud.Iam.V1;
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
-public class PolicyScraper
+public class Program
 {
-    private readonly OrganizationsClient _organizationsClient;
-    private readonly FoldersClient _foldersClient;
-    private readonly ProjectsClient _projectsClient;
-    private readonly IAMClient _iamClient;
-    private readonly GoogleCredential _credential;
+    private static OrganizationsClient _organizationsClient;
+    private static FoldersClient _foldersClient;
+    private static ProjectsClient _projectsClient;
+    private static IAMClient _iamClient;
 
-    public PolicyScraper()
+    public static async Task Main(string[] args)
     {
-        _credential = GoogleCredential.GetApplicationDefault();
-        _organizationsClient = new OrganizationsClientBuilder { Credential = _credential }.Build();
-        _foldersClient = new FoldersClientBuilder { Credential = _credential }.Build();
-        _projectsClient = new ProjectsClientBuilder { Credential = _credential }.Build();
-        _iamClient = new IAMClientBuilder { Credential = _credential }.Build();
+        if (args.Length != 1)
+        {
+            Console.WriteLine("Usage: dotnet run <organizationId>");
+            return;
+        }
+
+        string organizationId = args[0];
+
+        // Authenticate with Google Cloud
+        GoogleCredential credential = await GoogleCredential.GetApplicationDefaultAsync();
+        _organizationsClient = new OrganizationsClientBuilder { Credential = credential }.Build();
+        _foldersClient = new FoldersClientBuilder { Credential = credential }.Build();
+        _projectsClient = new ProjectsClientBuilder { Credential = credential }.Build();
+        _iamClient = new IAMClientBuilder { Credential = credential }.Build();
+
+        Console.WriteLine($"Starting to scrape IAM policies for organization: {organizationId}");
+        Console.WriteLine("-------------------------------------------------------");
+
+        await GetAndPrintAllIamPolicies(organizationId);
+
+        Console.WriteLine("-------------------------------------------------------");
+        Console.WriteLine("Scraping complete.");
     }
 
-    public async Task GetAndPrintAllIamPolicies(string organizationId)
+    public static async Task GetAndPrintAllIamPolicies(string organizationId)
     {
+        // Get Organization IAM Policy
         await PrintOrganizationPolicy(organizationId);
-        await TraverseFolders(organizationId);
+
+        // Traverse all folders and projects under the organization
+        await TraverseHierarchy($"organizations/{organizationId}");
     }
 
-    private async Task TraverseFolders(string parentId, string parentType = "organizations")
+    private static async Task TraverseHierarchy(string parentName)
     {
-        string parentName = $"{parentType}/{parentId}";
-        var folders = _foldersClient.ListFoldersAsync(parentName);
-
+        // Traverse folders
+        var folders = _foldersClient.ListFoldersAsync(new ListFoldersRequest { Parent = parentName });
         await foreach (var folder in folders)
         {
             await PrintFolderPolicy(folder.Name);
-            await TraverseFolders(folder.Name.Split('/')[1], "folders"); // Recurse for subfolders
-            await TraverseProjects(folder.Name.Split('/')[1], "folders");
+            // Recursively traverse subfolders and projects
+            await TraverseHierarchy(folder.Name);
         }
-        
-        // This handles projects directly under the organization
-        if (parentType == "organizations")
-        {
-            await TraverseProjects(parentId, parentType);
-        }
-    }
 
-    private async Task TraverseProjects(string parentId, string parentType)
-    {
-        string filter = $"parent.id:{parentId} parent.type:{parentType}";
-        var projects = _projectsClient.ListProjectsAsync(filter);
-        
+        // Traverse projects
+        string filter = $"parent:{parentName}";
+        var projects = _projectsClient.ListProjectsAsync(new ListProjectsRequest { Filter = filter });
         await foreach (var project in projects)
         {
             await PrintProjectPolicy(project.Name);
+            // Get service account policies for the project
             await PrintServiceAccountPolicies(project.ProjectId);
         }
     }
 
-    private async Task PrintOrganizationPolicy(string organizationId)
+    private static async Task PrintOrganizationPolicy(string organizationId)
     {
         try
         {
-            var policy = await _organizationsClient.GetIamPolicyAsync(OrganizationName.FromOrganization(organizationId));
-            Console.WriteLine($"\n--- IAM Policy for Organization: {organizationId} ---");
+            var policy = await _organizationsClient.GetIamPolicyAsync(new GetIamPolicyRequest { Resource = $"organizations/{organizationId}" });
+            Console.WriteLine($"\n--- IAM Policy for Organization: organizations/{organizationId} ---");
             PrintPolicy(policy);
         }
         catch (Exception e)
@@ -74,11 +84,11 @@ public class PolicyScraper
         }
     }
 
-    private async Task PrintFolderPolicy(string folderName)
+    private static async Task PrintFolderPolicy(string folderName)
     {
         try
         {
-            var policy = await _foldersClient.GetIamPolicyAsync(folderName);
+            var policy = await _foldersClient.GetIamPolicyAsync(new GetIamPolicyRequest { Resource = folderName });
             Console.WriteLine($"\n--- IAM Policy for Folder: {folderName} ---");
             PrintPolicy(policy);
         }
@@ -88,11 +98,11 @@ public class PolicyScraper
         }
     }
 
-    private async Task PrintProjectPolicy(string projectName)
+    private static async Task PrintProjectPolicy(string projectName)
     {
         try
         {
-            var policy = await _projectsClient.GetIamPolicyAsync(projectName);
+            var policy = await _projectsClient.GetIamPolicyAsync(new GetIamPolicyRequest { Resource = projectName });
             Console.WriteLine($"\n--- IAM Policy for Project: {projectName} ---");
             PrintPolicy(policy);
         }
@@ -102,7 +112,7 @@ public class PolicyScraper
         }
     }
 
-    private async Task PrintServiceAccountPolicies(string projectId)
+    private static async Task PrintServiceAccountPolicies(string projectId)
     {
         try
         {
@@ -120,7 +130,7 @@ public class PolicyScraper
         }
     }
 
-    private void PrintPolicy(Google.Cloud.Iam.V1.Policy policy)
+    private static void PrintPolicy(Google.Cloud.Iam.V1.Policy policy)
     {
         if (policy.Bindings.Count == 0)
         {
@@ -130,23 +140,13 @@ public class PolicyScraper
 
         foreach (var binding in policy.Bindings)
         {
-            Console.WriteLine($"\n  Role: {binding.Role}");
+            Console.WriteLine($"  Role: {binding.Role}");
             Console.WriteLine("  Members:");
             foreach (var member in binding.Members)
             {
                 Console.WriteLine($"    - {member}");
             }
         }
-    }
-}
-
-public class Program
-{
-    public static async Task Main(string[] args)
-    {
-        string organizationId = "YOUR_ORGANIZATION_ID";
-        var scraper = new PolicyScraper();
-        await scraper.GetAndPrintAllIamPolicies(organizationId);
     }
 }
 ```
